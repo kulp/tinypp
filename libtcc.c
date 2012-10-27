@@ -52,14 +52,12 @@ static int parse_flags;
 #define PARSE_FLAG_ASM_COMMENTS 0x0008 /* '#' can be used for line comment */
 #define PARSE_FLAG_SPACES     0x0010 /* next() returns space tokens (for -E) */
  
-static Section *data_section, *bss_section; /* predefined sections */
+static Section *data_section; /* predefined sections */
 static Section *cur_text_section; /* current section where function code is
                               generated */
 #ifdef CONFIG_TCC_ASM
 static Section *last_text_section; /* to handle .previous asm directive */
 #endif
-/* symbol sections */
-static Section *symtab_section;
 
 /* loc : local variable index
    ind : output code index
