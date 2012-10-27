@@ -20,6 +20,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#define STATIC static
+
 #include <assert.h>
 
 /* number of available registers */
@@ -104,7 +106,7 @@ static unsigned long func_sub_sp_offset;
 static int func_ret_sub;
 
 /* XXX: make it faster ? */
-void g(int c)
+STATIC void g(int c)
 {
     int ind1;
     ind1 = ind + 1;
@@ -114,7 +116,7 @@ void g(int c)
     ind = ind1;
 }
 
-void o(unsigned int c)
+STATIC void o(unsigned int c)
 {
     while (c) {
         g(c);
@@ -122,7 +124,7 @@ void o(unsigned int c)
     }
 }
 
-void gen_le32(int c)
+STATIC void gen_le32(int c)
 {
     g(c);
     g(c >> 8);
@@ -130,7 +132,7 @@ void gen_le32(int c)
     g(c >> 24);
 }
 
-void gen_le64(int64_t c)
+STATIC void gen_le64(int64_t c)
 {
     g(c);
     g(c >> 8);
@@ -143,7 +145,7 @@ void gen_le64(int64_t c)
 }
 
 /* output a symbol and patch all calls to it */
-void gsym_addr(int t, int a)
+STATIC void gsym_addr(int t, int a)
 {
     int n, *ptr;
     while (t) {
@@ -154,7 +156,7 @@ void gsym_addr(int t, int a)
     }
 }
 
-void gsym(int t)
+STATIC void gsym(int t)
 {
     gsym_addr(t, ind);
 }
@@ -194,37 +196,16 @@ static int oad(int c, int s)
 /* output constant with relocation if 'r & VT_SYM' is true */
 static void gen_addr64(int r, Sym *sym, int64_t c)
 {
-    if (r & VT_SYM)
-        greloc(cur_text_section, sym, ind, R_X86_64_64);
-    gen_le64(c);
 }
 
 /* output constant with relocation if 'r & VT_SYM' is true */
 static void gen_addrpc32(int r, Sym *sym, int c)
 {
-    if (r & VT_SYM)
-        greloc(cur_text_section, sym, ind, R_X86_64_PC32);
-    gen_le32(c-4);
 }
 
 /* output got address with relocation */
 static void gen_gotpcrel(int r, Sym *sym, int c)
 {
-    Section *sr;
-    ElfW(Rela) *rel;
-    greloc(cur_text_section, sym, ind, R_X86_64_GOTPCREL);
-    sr = cur_text_section->reloc;
-    rel = (ElfW(Rela) *)(sr->data + sr->data_offset - sizeof(ElfW(Rela)));
-    rel->r_addend = -4;
-    gen_le32(0);
-
-    if (c) {
-        /* we use add c, %xxx for displacement */
-        o(0x48 + REX_BASE(r));
-        o(0x81);
-        o(0xc0 + REG_VALUE(r));
-        gen_le32(c);
-    }
 }
 
 static void gen_modrm_impl(int op_reg, int r, Sym *sym, int c, int is_got)
@@ -284,7 +265,7 @@ static void gen_modrm64(int opcode, int op_reg, int r, Sym *sym, int c)
 
 
 /* load 'r' from value 'sv' */
-void load(int r, SValue *sv)
+STATIC void load(int r, SValue *sv)
 {
     int v, t, ft, fc, fr;
     SValue v1;
@@ -404,7 +385,7 @@ void load(int r, SValue *sv)
 }
 
 /* store register 'r' in lvalue 'v' */
-void store(int r, SValue *v)
+STATIC void store(int r, SValue *v)
 {
     int fr, bt, ft, fc;
     int op64 = 0;
@@ -489,184 +470,14 @@ static void gadd_sp(int val)
     }
 }
 
-/* 'is_jmp' is '1' if it is a jump */
-static void gcall_or_jmp(int is_jmp)
-{
-    int r;
-    if ((vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-        /* constant case */
-        if (vtop->r & VT_SYM) {
-            /* relocation case */
-            greloc(cur_text_section, vtop->sym,
-                   ind + 1, R_X86_64_PC32);
-        } else {
-            /* put an empty PC32 relocation */
-            put_elf_reloc(symtab_section, cur_text_section,
-                          ind + 1, R_X86_64_PC32, 0);
-        }
-        oad(0xe8 + is_jmp, vtop->c.ul - 4); /* call/jmp im */
-    } else {
-        /* otherwise, indirect call */
-        r = TREG_R11;
-        load(r, vtop);
-        o(0x41); /* REX */
-        o(0xff); /* call/jmp *r */
-        o(0xd0 + REG_VALUE(r) + (is_jmp << 4));
-    }
-}
-
 static uint8_t arg_regs[6] = {
     TREG_RDI, TREG_RSI, TREG_RDX, TREG_RCX, TREG_R8, TREG_R9
 };
 /* Generate function call. The function address is pushed first, then
    all the parameters in call order. This functions pops all the
    parameters and the function address. */
-void gfunc_call(int nb_args)
+STATIC void gfunc_call(int nb_args)
 {
-    int size, align, r, args_size, i, func_call;
-    Sym *func_sym;
-    SValue *orig_vtop;
-    int nb_reg_args = 0;
-    int nb_sse_args = 0;
-    int sse_reg, gen_reg;
-
-    /* calculate the number of integer/float arguments */
-    args_size = 0;
-    for(i = 0; i < nb_args; i++) {
-        if ((vtop[-i].type.t & VT_BTYPE) == VT_STRUCT) {
-            args_size += type_size(&vtop->type, &align);
-        } else if ((vtop[-i].type.t & VT_BTYPE) == VT_LDOUBLE) {
-            args_size += 16;
-        } else if (is_sse_float(vtop[-i].type.t)) {
-            nb_sse_args++;
-            if (nb_sse_args > 8) args_size += 8;
-        } else {
-            nb_reg_args++;
-            if (nb_reg_args > 6) args_size += 8;
-        }
-    }
-
-    /* for struct arguments, we need to call memcpy and the function
-       call breaks register passing arguments we are preparing.
-       So, we process arguments which will be passed by stack first. */
-    orig_vtop = vtop;
-    gen_reg = nb_reg_args;
-    sse_reg = nb_sse_args;
-    /* adjust stack to align SSE boundary */
-    if (args_size &= 8) {
-        o(0x50); /* push $rax */
-    }
-    for(i = 0; i < nb_args; i++) {
-        if ((vtop->type.t & VT_BTYPE) == VT_STRUCT) {
-            size = type_size(&vtop->type, &align);
-            /* align to stack align size */
-            size = (size + 3) & ~3;
-            /* allocate the necessary size on stack */
-            o(0x48);
-            oad(0xec81, size); /* sub $xxx, %rsp */
-            /* generate structure store */
-            r = get_reg(RC_INT);
-            o(0x48 + REX_BASE(r));
-            o(0x89); /* mov %rsp, r */
-            o(0xe0 + r);
-            {
-                /* following code breaks vtop[1] */
-                SValue tmp = vtop[1];
-                vset(&vtop->type, r | VT_LVAL, 0);
-                vswap();
-                vstore();
-                vtop[1] = tmp;
-            }
-            args_size += size;
-        } else if ((vtop->type.t & VT_BTYPE) == VT_LDOUBLE) {
-            gv(RC_ST0);
-            size = LDOUBLE_SIZE;
-            oad(0xec8148, size); /* sub $xxx, %rsp */
-            o(0x7cdb); /* fstpt 0(%rsp) */
-            g(0x24);
-            g(0x00);
-            args_size += size;
-        } else if (is_sse_float(vtop->type.t)) {
-            int j = --sse_reg;
-            if (j >= 8) {
-                gv(RC_FLOAT);
-                o(0x50); /* push $rax */
-                /* movq %xmm0, (%rsp) */
-                o(0x04d60f66);
-                o(0x24);
-                args_size += 8;
-            }
-        } else {
-            int j = --gen_reg;
-            /* simple type */
-            /* XXX: implicit cast ? */
-            if (j >= 6) {
-                r = gv(RC_INT);
-                o(0x50 + r); /* push r */
-                args_size += 8;
-            }
-        }
-        vtop--;
-    }
-    vtop = orig_vtop;
-
-    /* then, we prepare register passing arguments.
-       Note that we cannot set RDX and RCX in this loop because gv()
-       may break these temporary registers. Let's use R10 and R11
-       instead of them */
-    gen_reg = nb_reg_args;
-    sse_reg = nb_sse_args;
-    for(i = 0; i < nb_args; i++) {
-        if ((vtop->type.t & VT_BTYPE) == VT_STRUCT ||
-            (vtop->type.t & VT_BTYPE) == VT_LDOUBLE) {
-        } else if (is_sse_float(vtop->type.t)) {
-            int j = --sse_reg;
-            if (j < 8) {
-                gv(RC_FLOAT); /* only one float register */
-                /* movaps %xmm0, %xmmN */
-                o(0x280f);
-                o(0xc0 + (sse_reg << 3));
-            }
-        } else {
-            int j = --gen_reg;
-            /* simple type */
-            /* XXX: implicit cast ? */
-            if (j < 6) {
-                r = gv(RC_INT);
-                if (j < 2) {
-                    o(0x8948); /* mov */
-                    o(0xc0 + r * 8 + arg_regs[j]);
-                } else if (j < 4) {
-                    o(0x8949); /* mov */
-                    /* j=2: r10, j=3: r11 */
-                    o(0xc0 + r * 8 + j);
-                } else {
-                    o(0x8949); /* mov */
-                    /* j=4: r8, j=5: r9 */
-                    o(0xc0 + r * 8 + j - 4);
-                }
-            }
-        }
-        vtop--;
-    }
-
-    save_regs(0); /* save used temporary registers */
-
-    /* Copy R10 and R11 into RDX and RCX, respectively */
-    if (nb_reg_args > 2) {
-        o(0xd2894c); /* mov %r10, %rdx */
-        if (nb_reg_args > 3) {
-            o(0xd9894c); /* mov %r11, %rcx */
-        }
-    }
-
-    func_sym = vtop->type.ref;
-    func_call = FUNC_CALL(func_sym->r);
-    oad(0xb8, nb_sse_args < 8 ? nb_sse_args : 8); /* mov nb_sse_args, %eax */
-    gcall_or_jmp(0);
-    if (args_size)
-        gadd_sp(args_size);
-    vtop--;
 }
 
 #ifdef TCC_TARGET_PE
@@ -683,7 +494,7 @@ static void push_arg_reg(int i) {
 }
 
 /* generate function prolog of type 't' */
-void gfunc_prolog(CType *func_type)
+STATIC void gfunc_prolog(CType *func_type)
 {
     int i, addr, align, size, func_call;
     int param_index, param_addr, reg_param_index, sse_param_index;
@@ -810,7 +621,7 @@ void gfunc_prolog(CType *func_type)
 }
 
 /* generate function epilog */
-void gfunc_epilog(void)
+STATIC void gfunc_epilog(void)
 {
     int v, saved_ind;
 
@@ -846,13 +657,13 @@ void gfunc_epilog(void)
 }
 
 /* generate a jump to a label */
-int gjmp(int t)
+STATIC int gjmp(int t)
 {
     return psym(0xe9, t);
 }
 
 /* generate a jump to a fixed address */
-void gjmp_addr(int a)
+STATIC void gjmp_addr(int a)
 {
     int r;
     r = a - ind - 2;
@@ -865,7 +676,7 @@ void gjmp_addr(int a)
 }
 
 /* generate a test. set 'inv' to invert test. Stack entry is popped */
-int gtst(int inv, int t)
+STATIC int gtst(int inv, int t)
 {
     int v, *p;
 
@@ -910,7 +721,7 @@ int gtst(int inv, int t)
 }
 
 /* generate an integer binary operation */
-void gen_opi(int op)
+STATIC void gen_opi(int op)
 {
     int r, fr, opc, c;
 
@@ -1069,7 +880,7 @@ void gen_opi(int op)
     }
 }
 
-void gen_opl(int op)
+STATIC void gen_opl(int op)
 {
     gen_opi(op);
 }
@@ -1077,7 +888,7 @@ void gen_opl(int op)
 /* generate a floating point operation 'v = t1 op t2' instruction. The
    two operands are guaranted to have the same floating point type */
 /* XXX: need to use ST1 too */
-void gen_opf(int op)
+STATIC void gen_opf(int op)
 {
     int a, ft, fc, swapped, r;
     int float_type =
@@ -1283,7 +1094,7 @@ void gen_opf(int op)
 
 /* convert integers to fp 't' type. Must handle 'int', 'unsigned int'
    and 'long long' cases. */
-void gen_cvt_itof(int t)
+STATIC void gen_cvt_itof(int t)
 {
     if ((t & VT_BTYPE) == VT_LDOUBLE) {
         save_reg(TREG_ST0);
@@ -1325,7 +1136,7 @@ void gen_cvt_itof(int t)
 }
 
 /* convert from one floating point type to another */
-void gen_cvt_ftof(int t)
+STATIC void gen_cvt_ftof(int t)
 {
     int ft, bt, tbt;
 
@@ -1376,7 +1187,7 @@ void gen_cvt_ftof(int t)
 }
 
 /* convert fp to int 't' type */
-void gen_cvt_ftoi(int t)
+STATIC void gen_cvt_ftoi(int t)
 {
     int ft, bt, size, r;
     ft = vtop->type.t;
@@ -1409,10 +1220,8 @@ void gen_cvt_ftoi(int t)
 }
 
 /* computed goto support */
-void ggoto(void)
+STATIC void ggoto(void)
 {
-    gcall_or_jmp(1);
-    vtop--;
 }
 
 /* end of x86-64 code generator */

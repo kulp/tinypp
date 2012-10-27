@@ -18,6 +18,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#define STATIC static
 
 static const char tcc_keywords[] = 
 #define DEF(id, str) str "\0"
@@ -105,7 +106,7 @@ static TokenSym *tok_alloc(const char *str, int len)
 
 /* XXX: buffer overflow */
 /* XXX: float tokens */
-char *get_tok_str(int v, CValue *cv)
+STATIC char *get_tok_str(int v, CValue *cv)
 {
     static char buf[STRING_MAX_SIZE + 1];
     static CString cstr_buf;
@@ -532,7 +533,7 @@ static uint8_t *parse_pp_string(uint8_t *p,
 
 /* skip block of text until #else, #elif or #endif. skip also pairs of
    #if/#endif */
-void preprocess_skip(void)
+STATIC void preprocess_skip(void)
 {
     int a, start_of_line, c, in_warn_or_error;
     uint8_t *p;
@@ -624,7 +625,7 @@ _default:
    files */
 
 /* save current parse state in 's' */
-void save_parse_state(ParseState *s)
+STATIC void save_parse_state(ParseState *s)
 {
     s->line_num = file->line_num;
     s->macro_ptr = macro_ptr;
@@ -633,7 +634,7 @@ void save_parse_state(ParseState *s)
 }
 
 /* restore parse state from 's' */
-void restore_parse_state(ParseState *s)
+STATIC void restore_parse_state(ParseState *s)
 {
     file->line_num = s->line_num;
     macro_ptr = s->macro_ptr;
@@ -1343,10 +1344,6 @@ static void preprocess(int is_bof)
             f->inc_type = c;
             pstrcpy(f->inc_filename, sizeof(f->inc_filename), buf1);
             file = f;
-            /* add include file debug info */
-            if (tcc_state->do_debug) {
-                put_stabs(file->filename, N_BINCL, 0, 0, 0);
-            }
             tok_flags |= TOK_FLAG_BOF | TOK_FLAG_BOL;
             ch = file->buf_ptr[0];
             goto the_end;
@@ -1589,7 +1586,7 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long
 #define BN_SIZE 2
 
 /* bn = (bn << shift) | or_val */
-void bn_lshift(unsigned int *bn, int shift, int or_val)
+STATIC void bn_lshift(unsigned int *bn, int shift, int or_val)
 {
     int i;
     unsigned int v;
@@ -1600,7 +1597,7 @@ void bn_lshift(unsigned int *bn, int shift, int or_val)
     }
 }
 
-void bn_zero(unsigned int *bn)
+STATIC void bn_zero(unsigned int *bn)
 {
     int i;
     for(i=0;i<BN_SIZE;i++) {
@@ -1610,7 +1607,7 @@ void bn_zero(unsigned int *bn)
 
 /* parse number in null terminated string 'p' and return it in the
    current token */
-void parse_number(const char *p)
+STATIC void parse_number(const char *p)
 {
     int b, t, shift, frac_bits, s, exp_val, ch;
     char *q;
@@ -1955,10 +1952,6 @@ static inline void next_nomacro1(void)
                                        file->ifndef_macro_saved);
                 }
 
-                /* add end of include file debug info */
-                if (tcc_state->do_debug) {
-                    put_stabd(N_EINCL, 0, 0);
-                }
                 /* pop include stack */
                 tcc_close(file);
                 s1->include_stack_ptr--;

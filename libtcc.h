@@ -31,10 +31,6 @@ STATIC LIBTCCAPI void tcc_undefine_symbol(TCCState *s, const char *sym);
    script). Return -1 if error. */
 STATIC LIBTCCAPI int tcc_add_file(TCCState *s, const char *filename);
 
-/* compile a string containing a C source. Return non zero if
-   error. */
-STATIC LIBTCCAPI int tcc_compile_string(TCCState *s, const char *buf);
-
 /*****************************/
 /* linking commands */
 
