@@ -21,7 +21,7 @@
 #define _GNU_SOURCE
 #include "config.h"
 
-
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -43,8 +43,6 @@
 #ifndef PAGESIZE
 #define PAGESIZE 4096
 #endif
-
-#include "elf.h"
 
 #ifndef O_BINARY
 #define O_BINARY 0
