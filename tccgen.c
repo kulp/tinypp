@@ -18,7 +18,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-STATIC void vsetc(CType *type, int r, CValue *vc)
+static void vsetc(CType *type, int r, CValue *vc)
 {
     int v;
 
@@ -35,14 +35,14 @@ STATIC void vsetc(CType *type, int r, CValue *vc)
 }
 
 /* push integer constant */
-STATIC void vpushi(int v)
+static void vpushi(int v)
 {
     CValue cval;
     cval.i = v;
     vsetc(&int_type, VT_CONST, &cval);
 }
 
-STATIC void vswap(void)
+static void vswap(void)
 {
     SValue tmp;
 
@@ -51,7 +51,7 @@ STATIC void vswap(void)
     vtop[-1] = tmp;
 }
 
-STATIC void vpushv(SValue *v)
+static void vpushv(SValue *v)
 {
     if (vtop >= vstack + (VSTACK_SIZE - 1))
         error("memory full");
@@ -59,13 +59,13 @@ STATIC void vpushv(SValue *v)
     *vtop = *v;
 }
 
-STATIC void vdup(void)
+static void vdup(void)
 {
     vpushv(vtop);
 }
 
 /* get address of vtop (vtop MUST BE an lvalue) */
-STATIC void gaddrof(void)
+static void gaddrof(void)
 {
     vtop->r &= ~VT_LVAL;
     /* tricky: if saved lvalue, then we can go back to lvalue */
@@ -74,7 +74,7 @@ STATIC void gaddrof(void)
 }
 
 /* pop stack value */
-STATIC void vpop(void)
+static void vpop(void)
 {
     int v;
     v = vtop->r & VT_VALMASK;
@@ -138,7 +138,7 @@ static void gen_cast(CType *type)
 }
 
 /* store vtop in lvalue pushed on stack */
-STATIC void vstore(void)
+static void vstore(void)
 {
     int sbt, dbt, ft, delayed_cast;
 

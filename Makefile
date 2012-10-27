@@ -5,12 +5,9 @@
 TOP ?= .
 include $(TOP)/config.mak
 
-CFLAGS+=-g -Wall
-CFLAGS += -Wno-pointer-sign -Wno-sign-compare -D_FORTIFY_SOURCE=0 -fno-strict-aliasing
+CFLAGS += -g -Wall
+CFLAGS += -Wno-pointer-sign -Wno-sign-compare -fno-strict-aliasing
 OPTLEVEL = -O0
-
-# XXX
-NATIVE_TARGET=-DTCC_TARGET_X86_64
 
 ifeq ($(TOP),.)
 
@@ -23,7 +20,7 @@ all: $(PROGS) $(LIBTCC1) $(BCHECK_O)
 
 # Host Tiny C Compiler
 tcc$(EXESUF): $(CORE_FILES)
-	$(CC) -o $@ $< $(NATIVE_TARGET) $(CFLAGS) $(LIBS)
+	$(CC) -o $@ $< $(CFLAGS) $(LIBS)
 
 %.o: %.c
 	$(LIBTCC1_CC) -o $@ -c $< $(OPTLEVEL) -Wall

@@ -38,8 +38,6 @@
 #include <sys/ucontext.h>
 #include <sys/mman.h>
 
-#define STATIC static
-
 #ifndef PAGESIZE
 #define PAGESIZE 4096
 #endif
@@ -597,24 +595,24 @@ extern long double strtold (const char *__nptr, char **__endptr);
 #define IS_ABSPATH(p) IS_PATHSEP(p[0])
 #define PATHCMP strcmp
 
-STATIC void error(const char *fmt, ...);
-STATIC void error_noabort(const char *fmt, ...);
-STATIC void warning(const char *fmt, ...);
+static void error(const char *fmt, ...);
+static void error_noabort(const char *fmt, ...);
+static void warning(const char *fmt, ...);
 
 void tcc_set_lib_path_w32(TCCState *s);
 
-STATIC void tcc_free(void *ptr);
-STATIC void *tcc_malloc(unsigned long size);
-STATIC void *tcc_mallocz(unsigned long size);
-STATIC void *tcc_realloc(void *ptr, unsigned long size);
-STATIC char *tcc_strdup(const char *str);
+static void tcc_free(void *ptr);
+static void *tcc_malloc(unsigned long size);
+static void *tcc_mallocz(unsigned long size);
+static void *tcc_realloc(void *ptr, unsigned long size);
+static char *tcc_strdup(const char *str);
 
-STATIC char *tcc_basename(const char *name);
-STATIC char *tcc_fileextension (const char *name);
-STATIC char *pstrcpy(char *buf, int buf_size, const char *s);
-STATIC char *pstrcat(char *buf, int buf_size, const char *s);
-STATIC void dynarray_add(void ***ptab, int *nb_ptr, void *data);
-STATIC void dynarray_reset(void *pp, int *n);
+static char *tcc_basename(const char *name);
+static char *tcc_fileextension (const char *name);
+static char *pstrcpy(char *buf, int buf_size, const char *s);
+static char *pstrcat(char *buf, int buf_size, const char *s);
+static void dynarray_add(void ***ptab, int *nb_ptr, void *data);
+static void dynarray_reset(void *pp, int *n);
 
 
 /* space exlcuding newline */

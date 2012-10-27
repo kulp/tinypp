@@ -83,20 +83,20 @@ static struct TCCState *tcc_state;
 
 /* tccpp.c */
 static void next(void);
-STATIC char *get_tok_str(int v, CValue *cv);
+static char *get_tok_str(int v, CValue *cv);
 
 /* tccgen.c */
 static int expr_const(void);
 static void expr_eq(void);
 static void gexpr(void);
-STATIC void vpop(void);
-STATIC void vswap(void);
-STATIC void vdup(void);
+static void vpop(void);
+static void vswap(void);
+static void vdup(void);
 
-STATIC void vstore(void);
+static void vstore(void);
 static Sym *sym_find(int v);
 
-STATIC void vpushi(int v);
+static void vpushi(int v);
 
 #define AFF_PRINT_ERROR     0x0001 /* print error if file not found */
 #define AFF_REFERENCED_DLL  0x0002 /* load a referenced dll from another dll */
@@ -124,7 +124,7 @@ typedef struct TCCSyms {
 /********************************************************/
 
 /* copy a string and truncate it. */
-STATIC char *pstrcpy(char *buf, int buf_size, const char *s)
+static char *pstrcpy(char *buf, int buf_size, const char *s)
 {
     char *q, *q_end;
     int c;
@@ -144,7 +144,7 @@ STATIC char *pstrcpy(char *buf, int buf_size, const char *s)
 }
 
 /* strcat and truncate. */
-STATIC char *pstrcat(char *buf, int buf_size, const char *s)
+static char *pstrcat(char *buf, int buf_size, const char *s)
 {
     int len;
     len = strlen(buf);
@@ -154,7 +154,7 @@ STATIC char *pstrcat(char *buf, int buf_size, const char *s)
 }
 
 /* extract the basename of a file */
-STATIC char *tcc_basename(const char *name)
+static char *tcc_basename(const char *name)
 {
     char *p = strchr(name, 0);
     while (p > name && !IS_PATHSEP(p[-1]))
@@ -162,7 +162,7 @@ STATIC char *tcc_basename(const char *name)
     return p;
 }
 
-STATIC char *tcc_fileextension (const char *name)
+static char *tcc_fileextension (const char *name)
 {
     char *b = tcc_basename(name);
     char *e = strrchr(b, '.');
@@ -171,12 +171,12 @@ STATIC char *tcc_fileextension (const char *name)
 
 /* memory management */
 
-STATIC void tcc_free(void *ptr)
+static void tcc_free(void *ptr)
 {
     free(ptr);
 }
 
-STATIC void *tcc_malloc(unsigned long size)
+static void *tcc_malloc(unsigned long size)
 {
     void *ptr;
     ptr = malloc(size);
@@ -185,7 +185,7 @@ STATIC void *tcc_malloc(unsigned long size)
     return ptr;
 }
 
-STATIC void *tcc_mallocz(unsigned long size)
+static void *tcc_mallocz(unsigned long size)
 {
     void *ptr;
     ptr = tcc_malloc(size);
@@ -193,14 +193,14 @@ STATIC void *tcc_mallocz(unsigned long size)
     return ptr;
 }
 
-STATIC void *tcc_realloc(void *ptr, unsigned long size)
+static void *tcc_realloc(void *ptr, unsigned long size)
 {
     void *ptr1;
     ptr1 = realloc(ptr, size);
     return ptr1;
 }
 
-STATIC char *tcc_strdup(const char *str)
+static char *tcc_strdup(const char *str)
 {
     char *ptr;
     ptr = tcc_malloc(strlen(str) + 1);
@@ -212,7 +212,7 @@ STATIC char *tcc_strdup(const char *str)
 #define malloc(s) use_tcc_malloc(s)
 #define realloc(p, s) use_tcc_realloc(p, s)
 
-STATIC void dynarray_add(void ***ptab, int *nb_ptr, void *data)
+static void dynarray_add(void ***ptab, int *nb_ptr, void *data)
 {
     int nb, nb_alloc;
     void **pp;
@@ -234,7 +234,7 @@ STATIC void dynarray_add(void ***ptab, int *nb_ptr, void *data)
     *nb_ptr = nb;
 }
 
-STATIC void dynarray_reset(void *pp, int *n)
+static void dynarray_reset(void *pp, int *n)
 {
     void **p;
     for (p = *(void***)pp; *n; ++p, --*n)
@@ -320,7 +320,7 @@ static void strcat_printf(char *buf, int buf_size, const char *fmt, ...)
     va_end(ap);
 }
 
-STATIC void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
+static void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
 {
     char buf[2048];
     BufferedFile **f;
@@ -356,7 +356,7 @@ STATIC void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
 }
 
 /* error without aborting current compilation */
-STATIC void error_noabort(const char *fmt, ...)
+static void error_noabort(const char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
@@ -366,7 +366,7 @@ STATIC void error_noabort(const char *fmt, ...)
     va_end(ap);
 }
 
-STATIC void error(const char *fmt, ...)
+static void error(const char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
@@ -383,12 +383,12 @@ STATIC void error(const char *fmt, ...)
     }
 }
 
-STATIC void expect(const char *msg)
+static void expect(const char *msg)
 {
     error("%s expected", msg);
 }
 
-STATIC void warning(const char *fmt, ...)
+static void warning(const char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
@@ -401,7 +401,7 @@ STATIC void warning(const char *fmt, ...)
     va_end(ap);
 }
 
-STATIC void skip(int c)
+static void skip(int c)
 {
     if (tok != c)
         error("'%c' expected", c);
@@ -552,7 +552,7 @@ static inline Sym *sym_find(int v)
 
 /* I/O layer */
 
-STATIC BufferedFile *tcc_open(TCCState *s1, const char *filename)
+static BufferedFile *tcc_open(TCCState *s1, const char *filename)
 {
     int fd;
     BufferedFile *bf;
@@ -576,7 +576,7 @@ STATIC BufferedFile *tcc_open(TCCState *s1, const char *filename)
     return bf;
 }
 
-STATIC void tcc_close(BufferedFile *bf)
+static void tcc_close(BufferedFile *bf)
 {
     total_lines += bf->line_num;
     close(bf->fd);
@@ -587,7 +587,7 @@ STATIC void tcc_close(BufferedFile *bf)
 #include "tccgen.c"
 
 /* define a preprocessor symbol. A value can also be provided with the '=' operator */
-STATIC void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
+static void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
 {
     BufferedFile bf1, *bf = &bf1;
 
@@ -617,7 +617,7 @@ STATIC void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
 }
 
 /* undefine a preprocessor symbol */
-STATIC void tcc_undefine_symbol(TCCState *s1, const char *sym)
+static void tcc_undefine_symbol(TCCState *s1, const char *sym)
 {
     TokenSym *ts;
     Sym *s;
@@ -658,7 +658,7 @@ static void tcc_cleanup(void)
     macro_ptr = NULL;
 }
 
-STATIC TCCState *tcc_new(void)
+static TCCState *tcc_new(void)
 {
     TCCState *s;
 
@@ -686,7 +686,7 @@ STATIC TCCState *tcc_new(void)
     return s;
 }
 
-STATIC int tcc_add_include_path(TCCState *s1, const char *pathname)
+static int tcc_add_include_path(TCCState *s1, const char *pathname)
 {
     char *pathname1;
     
@@ -732,7 +732,7 @@ static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
     goto the_end;
 }
 
-STATIC int tcc_add_file(TCCState *s, const char *filename)
+static int tcc_add_file(TCCState *s, const char *filename)
 {
     if (s->output_type == TCC_OUTPUT_PREPROCESS)
         return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR | AFF_PREPROCESS);
@@ -740,7 +740,7 @@ STATIC int tcc_add_file(TCCState *s, const char *filename)
         return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR);
 }
 
-STATIC int tcc_set_output_type(TCCState *s, int output_type)
+static int tcc_set_output_type(TCCState *s, int output_type)
 {
     s->output_type = output_type;
 

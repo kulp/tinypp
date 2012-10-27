@@ -18,8 +18,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#define STATIC static
-
 static const char tcc_keywords[] = 
 #define DEF(id, str) str "\0"
 #include "tcctok.h"
@@ -106,7 +104,7 @@ static TokenSym *tok_alloc(const char *str, int len)
 
 /* XXX: buffer overflow */
 /* XXX: float tokens */
-STATIC char *get_tok_str(int v, CValue *cv)
+static char *get_tok_str(int v, CValue *cv)
 {
     static char buf[STRING_MAX_SIZE + 1];
     static CString cstr_buf;
@@ -533,7 +531,7 @@ static uint8_t *parse_pp_string(uint8_t *p,
 
 /* skip block of text until #else, #elif or #endif. skip also pairs of
    #if/#endif */
-STATIC void preprocess_skip(void)
+static void preprocess_skip(void)
 {
     int a, start_of_line, c, in_warn_or_error;
     uint8_t *p;
@@ -626,7 +624,7 @@ _default:
    files */
 
 /* save current parse state in 's' */
-STATIC void save_parse_state(ParseState *s)
+static void save_parse_state(ParseState *s)
 {
     s->line_num = file->line_num;
     s->macro_ptr = macro_ptr;
@@ -635,7 +633,7 @@ STATIC void save_parse_state(ParseState *s)
 }
 
 /* restore parse state from 's' */
-STATIC void restore_parse_state(ParseState *s)
+static void restore_parse_state(ParseState *s)
 {
     file->line_num = s->line_num;
     macro_ptr = s->macro_ptr;
@@ -1520,7 +1518,7 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long
 #define BN_SIZE 2
 
 /* bn = (bn << shift) | or_val */
-STATIC void bn_lshift(unsigned int *bn, int shift, int or_val)
+static void bn_lshift(unsigned int *bn, int shift, int or_val)
 {
     int i;
     unsigned int v;
@@ -1531,7 +1529,7 @@ STATIC void bn_lshift(unsigned int *bn, int shift, int or_val)
     }
 }
 
-STATIC void bn_zero(unsigned int *bn)
+static void bn_zero(unsigned int *bn)
 {
     int i;
     for(i=0;i<BN_SIZE;i++) {
@@ -1541,7 +1539,7 @@ STATIC void bn_zero(unsigned int *bn)
 
 /* parse number in null terminated string 'p' and return it in the
    current token */
-STATIC void parse_number(const char *p)
+static void parse_number(const char *p)
 {
     int b, t, shift, frac_bits, s, exp_val, ch;
     char *q;
@@ -2784,7 +2782,7 @@ static void preprocess_init(TCCState *s1)
     s1->pack_stack_ptr = s1->pack_stack;
 }
 
-STATIC void preprocess_new()
+static void preprocess_new()
 {
     int i, c;
     const char *p, *r;
