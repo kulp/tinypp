@@ -1,0 +1,5 @@
+config.mak
+*.a
+*.o
+config.h
+tcc
