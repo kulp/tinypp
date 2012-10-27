@@ -183,14 +183,10 @@ static Sym *external_global_sym(int v, CType *type, int r);
 /* section generation */
 static void section_realloc(Section *sec, unsigned long new_size);
 static void *section_ptr_add(Section *sec, unsigned long size);
-static void put_extern_sym(Sym *sym, Section *section, 
-                           unsigned long value, unsigned long size);
 static int put_elf_str(Section *s, const char *sym);
 static int put_elf_sym(Section *s, 
                        unsigned long value, unsigned long size,
                        int info, int other, int shndx, const char *name);
-static int add_elf_sym(Section *s, unsigned long value, unsigned long size,
-                       int info, int other, int sh_num, const char *name);
 static void put_elf_reloc(Section *symtab, Section *s, unsigned long offset,
                           int type, int symbol);
 static void put_stabs(const char *str, int type, int other, int desc, 
@@ -570,105 +566,6 @@ Section *find_section(TCCState *s1, const char *name)
     }
     /* sections are created as PROGBITS */
     return new_section(s1, name, SHT_PROGBITS, SHF_ALLOC);
-}
-
-/* update sym->c so that it points to an external symbol in section
-   'section' with value 'value' */
-static void put_extern_sym2(Sym *sym, Section *section, 
-                            unsigned long value, unsigned long size,
-                            int can_add_underscore)
-{
-    int sym_type, sym_bind, sh_num, info, other, attr;
-    ElfW(Sym) *esym;
-    const char *name;
-    char buf1[256];
-
-    if (section == NULL)
-        sh_num = SHN_UNDEF;
-    else if (section == SECTION_ABS) 
-        sh_num = SHN_ABS;
-    else
-        sh_num = section->sh_num;
-
-    other = attr = 0;
-
-    if ((sym->type.t & VT_BTYPE) == VT_FUNC) {
-        sym_type = STT_FUNC;
-#ifdef TCC_TARGET_PE
-        if (sym->type.ref)
-            attr = sym->type.ref->r;
-        if (FUNC_EXPORT(attr))
-            other |= 1;
-        if (FUNC_CALL(attr) == FUNC_STDCALL)
-            other |= 2;
-#endif
-    } else {
-        sym_type = STT_OBJECT;
-    }
-
-    if (sym->type.t & VT_STATIC)
-        sym_bind = STB_LOCAL;
-    else
-        sym_bind = STB_GLOBAL;
-
-    if (!sym->c) {
-        name = get_tok_str(sym->v, NULL);
-#ifdef CONFIG_TCC_BCHECK
-        if (tcc_state->do_bounds_check) {
-            char buf[32];
-
-            /* XXX: avoid doing that for statics ? */
-            /* if bound checking is activated, we change some function
-               names by adding the "__bound" prefix */
-            switch(sym->v) {
-#if 0
-            /* XXX: we rely only on malloc hooks */
-            case TOK_malloc: 
-            case TOK_free: 
-            case TOK_realloc: 
-            case TOK_memalign: 
-            case TOK_calloc: 
-#endif
-            case TOK_memcpy: 
-            case TOK_memmove:
-            case TOK_memset:
-            case TOK_strlen:
-            case TOK_strcpy:
-            case TOK_alloca:
-                strcpy(buf, "__bound_");
-                strcat(buf, name);
-                name = buf;
-                break;
-            }
-        }
-#endif
-
-#ifdef TCC_TARGET_PE
-        if ((other & 2) && can_add_underscore) {
-            sprintf(buf1, "_%s@%d", name, FUNC_ARGS(attr));
-            name = buf1;
-        } else
-#endif
-        if (tcc_state->leading_underscore && can_add_underscore) {
-            buf1[0] = '_';
-            pstrcpy(buf1 + 1, sizeof(buf1) - 1, name);
-            name = buf1;
-        }
-        info = ELFW(ST_INFO)(sym_bind, sym_type);
-        sym->c = add_elf_sym(symtab_section, value, size, info, other, sh_num, name);
-    } else {
-        esym = &((ElfW(Sym) *)symtab_section->data)[sym->c];
-        esym->st_value = value;
-        esym->st_size = size;
-        esym->st_shndx = sh_num;
-        esym->st_other |= other;
-    }
-}
-
-static void put_extern_sym(Sym *sym, Section *section, 
-                           unsigned long value, unsigned long size)
-{
-    put_extern_sym2(sym, section, value, size, 1);
 }
 
 static inline int isid(int c)
@@ -1108,7 +1005,7 @@ static void asm_global_instr(void)
 }
 #endif
 
-#include "tccelf.c"
+//#include "tccelf.c"
 
 /* copy code into memory passed in by the caller and do all relocations
    (needed before using tcc_get_symbol()).

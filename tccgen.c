@@ -65,21 +65,6 @@ STATIC void vpushll(long long v)
     vsetc(&ctype, VT_CONST, &cval);
 }
 
-/* Return a static symbol pointing to a section */
-static Sym *get_sym_ref(CType *type, Section *sec, 
-                        unsigned long offset, unsigned long size)
-{
-    int v;
-    Sym *sym;
-
-    v = anon_sym++;
-    sym = global_identifier_push(v, type->t | VT_STATIC, 0);
-    sym->type.ref = type->ref;
-    sym->r = VT_CONST | VT_SYM;
-    put_extern_sym(sym, sec, offset, size);
-    return sym;
-}
-
 /* push a reference to a section offset by adding a dummy symbol */
 static void vpush_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
 {
@@ -87,7 +72,7 @@ static void vpush_ref(CType *type, Section *sec, unsigned long offset, unsigned 
 
     cval.ul = 0;
     vsetc(type, VT_CONST | VT_SYM, &cval);
-    vtop->sym = get_sym_ref(type, sec, offset, size);
+    /* XXX *///vtop->sym = get_sym_ref(type, sec, offset, size);
 }
 
 /* define a new external reference to a symbol 'v' of type 'u' */
@@ -404,7 +389,7 @@ STATIC int gv(int rc)
 #endif
             for(i=0;i<size;i++)
                 ptr[i] = vtop->c.tab[i];
-            sym = get_sym_ref(&vtop->type, data_section, offset, size << 2);
+            /* XXX *///sym = get_sym_ref(&vtop->type, data_section, offset, size << 2);
             vtop->r |= VT_LVAL | VT_SYM;
             vtop->sym = sym;
             vtop->c.ul = 0;
@@ -2946,27 +2931,6 @@ static void unary(void)
         vpush_tokc(VT_LDOUBLE);
         next();
         break;
-    case TOK___FUNCTION__:
-        if (!gnu_ext)
-            goto tok_identifier;
-        /* fall thru */
-    case TOK___FUNC__:
-        {
-            void *ptr;
-            int len;
-            /* special function name identifier */
-            len = strlen(funcname) + 1;
-            /* generate char[len] type */
-            type.t = VT_BYTE;
-            mk_pointer(&type);
-            type.t |= VT_ARRAY;
-            type.ref->c = len;
-            vpush_ref(&type, data_section, data_section->data_offset, len);
-            ptr = section_ptr_add(data_section, len);
-            memcpy(ptr, funcname, len);
-            next();
-        }
-        break;
     case TOK_LSTR:
 #ifdef TCC_TARGET_PE
         t = VT_SHORT | VT_UNSIGNED;
@@ -3008,13 +2972,6 @@ static void unary(void)
                 unary();
                 gen_cast(&type);
             }
-        } else if (tok == '{') {
-            /* save all registers */
-            save_regs(0); 
-            /* statement expression : we do not accept break/continue
-               inside as GCC does */
-            block(NULL, NULL, NULL, NULL, 0, 1);
-            skip(')');
         } else {
             gexpr();
             skip(')');
@@ -3206,7 +3163,7 @@ static void unary(void)
                compilation unit. Inline function as always
                generated in the text section. */
             if (!s->c)
-                put_extern_sym(s, text_section, 0, 0);
+                ;//put_extern_sym(s, text_section, 0, 0);
             r = VT_SYM | VT_CONST;
         } else {
             r = s->r;
@@ -3741,342 +3698,6 @@ static int is_label(void)
     } else {
         unget_tok(last_tok);
         return 0;
-    }
-}
-
-static void block(int *bsym, int *csym, int *case_sym, int *def_sym, 
-                  int case_reg, int is_expr)
-{
-    int a, b, c, d;
-    Sym *s;
-
-    if (is_expr) {
-        /* default return value is (void) */
-        vpushi(0);
-        vtop->type.t = VT_VOID;
-    }
-
-    if (tok == TOK_IF) {
-        /* if test */
-        next();
-        skip('(');
-        gexpr();
-        skip(')');
-        a = gtst(1, 0);
-        block(bsym, csym, case_sym, def_sym, case_reg, 0);
-        c = tok;
-        if (c == TOK_ELSE) {
-            next();
-            d = gjmp(0);
-            gsym(a);
-            block(bsym, csym, case_sym, def_sym, case_reg, 0);
-            gsym(d); /* patch else jmp */
-        } else
-            gsym(a);
-    } else if (tok == TOK_WHILE) {
-        next();
-        d = ind;
-        skip('(');
-        gexpr();
-        skip(')');
-        a = gtst(1, 0);
-        b = 0;
-        block(&a, &b, case_sym, def_sym, case_reg, 0);
-        gjmp_addr(d);
-        gsym(a);
-        gsym_addr(b, d);
-    } else if (tok == '{') {
-        Sym *llabel;
-        
-        next();
-        /* record local declaration stack position */
-        s = local_stack;
-        llabel = local_label_stack;
-        /* handle local labels declarations */
-        if (tok == TOK_LABEL) {
-            next();
-            for(;;) {
-                if (tok < TOK_UIDENT)
-                    expect("label identifier");
-                label_push(&local_label_stack, tok, LABEL_DECLARED);
-                next();
-                if (tok == ',') {
-                    next();
-                } else {
-                    skip(';');
-                    break;
-                }
-            }
-        }
-        while (tok != '}') {
-            decl(VT_LOCAL);
-            if (tok != '}') {
-                if (is_expr)
-                    vpop();
-                block(bsym, csym, case_sym, def_sym, case_reg, is_expr);
-            }
-        }
-        /* pop locally defined labels */
-        label_pop(&local_label_stack, llabel);
-        /* pop locally defined symbols */
-        if(is_expr) {
-            /* XXX: this solution makes only valgrind happy...
-               triggered by gcc.c-torture/execute/20000917-1.c */
-            Sym *p;
-            switch(vtop->type.t & VT_BTYPE) {
-            case VT_PTR:
-            case VT_STRUCT:
-            case VT_ENUM:
-            case VT_FUNC:
-                for(p=vtop->type.ref;p;p=p->prev)
-                    if(p->prev==s)
-                        error("unsupported expression type");
-            }
-        }
-        sym_pop(&local_stack, s);
-        next();
-    } else if (tok == TOK_RETURN) {
-        next();
-        if (tok != ';') {
-            gexpr();
-            gen_assign_cast(&func_vt);
-            if ((func_vt.t & VT_BTYPE) == VT_STRUCT) {
-                CType type;
-                /* if returning structure, must copy it to implicit
-                   first pointer arg location */
-#ifdef TCC_ARM_EABI
-                int align, size;
-                size = type_size(&func_vt,&align);
-                if(size <= 4)
-                {
-                    if((vtop->r != (VT_LOCAL | VT_LVAL) || (vtop->c.i & 3))
-                       && (align & 3))
-                    {
-                        int addr;
-                        loc = (loc - size) & -4;
-                        addr = loc;
-                        type = func_vt;
-                        vset(&type, VT_LOCAL | VT_LVAL, addr);
-                        vswap();
-                        vstore();
-                        vset(&int_type, VT_LOCAL | VT_LVAL, addr);
-                    }
-                    vtop->type = int_type;
-                    gv(RC_IRET);
-                } else {
-#endif
-                type = func_vt;
-                mk_pointer(&type);
-                vset(&type, VT_LOCAL | VT_LVAL, func_vc);
-                indir();
-                vswap();
-                /* copy structure value to pointer */
-                vstore();
-#ifdef TCC_ARM_EABI
-                }
-#endif
-            } else if (is_float(func_vt.t)) {
-                gv(rc_fret(func_vt.t));
-            } else {
-                gv(RC_IRET);
-            }
-            vtop--; /* NOT vpop() because on x86 it would flush the fp stack */
-        }
-        skip(';');
-        rsym = gjmp(rsym); /* jmp */
-    } else if (tok == TOK_BREAK) {
-        /* compute jump */
-        if (!bsym)
-            error("cannot break");
-        *bsym = gjmp(*bsym);
-        next();
-        skip(';');
-    } else if (tok == TOK_CONTINUE) {
-        /* compute jump */
-        if (!csym)
-            error("cannot continue");
-        *csym = gjmp(*csym);
-        next();
-        skip(';');
-    } else if (tok == TOK_FOR) {
-        int e;
-        next();
-        skip('(');
-        if (tok != ';') {
-            gexpr();
-            vpop();
-        }
-        skip(';');
-        d = ind;
-        c = ind;
-        a = 0;
-        b = 0;
-        if (tok != ';') {
-            gexpr();
-            a = gtst(1, 0);
-        }
-        skip(';');
-        if (tok != ')') {
-            e = gjmp(0);
-            c = ind;
-            gexpr();
-            vpop();
-            gjmp_addr(d);
-            gsym(e);
-        }
-        skip(')');
-        block(&a, &b, case_sym, def_sym, case_reg, 0);
-        gjmp_addr(c);
-        gsym(a);
-        gsym_addr(b, c);
-    } else 
-    if (tok == TOK_DO) {
-        next();
-        a = 0;
-        b = 0;
-        d = ind;
-        block(&a, &b, case_sym, def_sym, case_reg, 0);
-        skip(TOK_WHILE);
-        skip('(');
-        gsym(b);
-        gexpr();
-        c = gtst(0, 0);
-        gsym_addr(c, d);
-        skip(')');
-        gsym(a);
-        skip(';');
-    } else
-    if (tok == TOK_SWITCH) {
-        next();
-        skip('(');
-        gexpr();
-        /* XXX: other types than integer */
-        case_reg = gv(RC_INT);
-        vpop();
-        skip(')');
-        a = 0;
-        b = gjmp(0); /* jump to first case */
-        c = 0;
-        block(&a, csym, &b, &c, case_reg, 0);
-        /* if no default, jmp after switch */
-        if (c == 0)
-            c = ind;
-        /* default label */
-        gsym_addr(b, c);
-        /* break label */
-        gsym(a);
-    } else
-    if (tok == TOK_CASE) {
-        int v1, v2;
-        if (!case_sym)
-            expect("switch");
-        next();
-        v1 = expr_const();
-        v2 = v1;
-        if (gnu_ext && tok == TOK_DOTS) {
-            next();
-            v2 = expr_const();
-            if (v2 < v1)
-                warning("empty case range");
-        }
-        /* since a case is like a label, we must skip it with a jmp */
-        b = gjmp(0);
-        gsym(*case_sym);
-        vseti(case_reg, 0);
-        vpushi(v1);
-        if (v1 == v2) {
-            gen_op(TOK_EQ);
-            *case_sym = gtst(1, 0);
-        } else {
-            gen_op(TOK_GE);
-            *case_sym = gtst(1, 0);
-            vseti(case_reg, 0);
-            vpushi(v2);
-            gen_op(TOK_LE);
-            *case_sym = gtst(1, *case_sym);
-        }
-        gsym(b);
-        skip(':');
-        is_expr = 0;
-        goto block_after_label;
-    } else 
-    if (tok == TOK_DEFAULT) {
-        next();
-        skip(':');
-        if (!def_sym)
-            expect("switch");
-        if (*def_sym)
-            error("too many 'default'");
-        *def_sym = ind;
-        is_expr = 0;
-        goto block_after_label;
-    } else
-    if (tok == TOK_GOTO) {
-        next();
-        if (tok == '*' && gnu_ext) {
-            /* computed goto */
-            next();
-            gexpr();
-            if ((vtop->type.t & VT_BTYPE) != VT_PTR)
-                expect("pointer");
-            ggoto();
-        } else if (tok >= TOK_UIDENT) {
-            s = label_find(tok);
-            /* put forward definition if needed */
-            if (!s) {
-                s = label_push(&global_label_stack, tok, LABEL_FORWARD);
-            } else {
-                if (s->r == LABEL_DECLARED)
-                    s->r = LABEL_FORWARD;
-            }
-            /* label already defined */
-            if (s->r & LABEL_FORWARD) 
-                s->next = (void *)gjmp((long)s->next);
-            else
-                gjmp_addr((long)s->next);
-            next();
-        } else {
-            expect("label identifier");
-        }
-        skip(';');
-    } else if (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3) {
-        asm_instr();
-    } else {
-        b = is_label();
-        if (b) {
-            /* label case */
-            s = label_find(b);
-            if (s) {
-                if (s->r == LABEL_DEFINED)
-                    error("duplicate label '%s'", get_tok_str(s->v, NULL));
-                gsym((long)s->next);
-                s->r = LABEL_DEFINED;
-            } else {
-                s = label_push(&global_label_stack, b, LABEL_DEFINED);
-            }
-            s->next = (void *)ind;
-            /* we accept this, but it is a mistake */
-        block_after_label:
-            if (tok == '}') {
-                warning("deprecated use of label at end of compound statement");
-            } else {
-                if (is_expr)
-                    vpop();
-                block(bsym, csym, case_sym, def_sym, case_reg, is_expr);
-            }
-        } else {
-            /* expression case */
-            if (tok != ';') {
-                if (is_expr) {
-                    vpop();
-                    gexpr();
-                } else {
-                    gexpr();
-                    vpop();
-                }
-            }
-            skip(';');
-        }
     }
 }
 
@@ -4675,11 +4296,13 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
             }
             /* update symbol definition */
             if (sec) {
-                put_extern_sym(sym, sec, addr, size);
+                // XXX
+                //put_extern_sym(sym, sec, addr, size);
             } else {
                 ElfW(Sym) *esym;
                 /* put a common area */
-                put_extern_sym(sym, NULL, align, size);
+                // XXX
+                //put_extern_sym(sym, NULL, align, size);
                 /* XXX: find a nicer way */
                 esym = &((ElfW(Sym) *)symtab_section->data)[sym->c];
                 esym->st_shndx = SHN_COMMON;
@@ -4688,7 +4311,7 @@ static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r,
             CValue cval;
 
             /* push global reference */
-            sym = get_sym_ref(type, sec, addr, size);
+            /* XXX *///sym = get_sym_ref(type, sec, addr, size);
             cval.ul = 0;
             vsetc(type, VT_CONST | VT_SYM, &cval);
             vtop->sym = sym;
@@ -4750,90 +4373,6 @@ static void func_decl_list(Sym *func_sym)
             }
         }
         skip(';');
-    }
-}
-
-/* parse a function defined by symbol 'sym' and generate its code in
-   'cur_text_section' */
-static void gen_function(Sym *sym)
-{
-    int saved_nocode_wanted = nocode_wanted;
-    nocode_wanted = 0;
-    ind = cur_text_section->data_offset;
-    /* NOTE: we patch the symbol size later */
-    put_extern_sym(sym, cur_text_section, ind, 0);
-    funcname = get_tok_str(sym->v, NULL);
-    func_ind = ind;
-    /* push a dummy symbol to enable local sym storage */
-    sym_push2(&local_stack, SYM_FIELD, 0, 0);
-    gfunc_prolog(&sym->type);
-    rsym = 0;
-    block(NULL, NULL, NULL, NULL, 0, 0);
-    gsym(rsym);
-    gfunc_epilog();
-    cur_text_section->data_offset = ind;
-    label_pop(&global_label_stack, NULL);
-    sym_pop(&local_stack, NULL); /* reset local stack */
-    /* end of function */
-    /* patch symbol size */
-    ((ElfW(Sym) *)symtab_section->data)[sym->c].st_size = 
-        ind - func_ind;
-    /* It's better to crash than to generate wrong code */
-    cur_text_section = NULL;
-    funcname = ""; /* for safety */
-    func_vt.t = VT_VOID; /* for safety */
-    ind = 0; /* for safety */
-    nocode_wanted = saved_nocode_wanted;
-}
-
-static void gen_inline_functions(void)
-{
-    Sym *sym;
-    CType *type;
-    int *str, inline_generated;
-
-    /* iterate while inline function are referenced */
-    for(;;) {
-        inline_generated = 0;
-        for(sym = global_stack; sym != NULL; sym = sym->prev) {
-            type = &sym->type;
-            if (((type->t & VT_BTYPE) == VT_FUNC) &&
-                (type->t & (VT_STATIC | VT_INLINE)) == 
-                (VT_STATIC | VT_INLINE) &&
-                sym->c != 0) {
-                /* the function was used: generate its code and
-                   convert it to a normal function */
-                str = INLINE_DEF(sym->r);
-                sym->r = VT_SYM | VT_CONST;
-                sym->type.t &= ~VT_INLINE;
-
-                macro_ptr = str;
-                next();
-                cur_text_section = text_section;
-                gen_function(sym);
-                macro_ptr = NULL; /* fail safe */
-
-                tok_str_free(str);
-                inline_generated = 1;
-            }
-        }
-        if (!inline_generated)
-            break;
-    }
-
-    /* free all remaining inline function tokens */
-    for(sym = global_stack; sym != NULL; sym = sym->prev) {
-        type = &sym->type;
-        if (((type->t & VT_BTYPE) == VT_FUNC) &&
-            (type->t & (VT_STATIC | VT_INLINE)) == 
-            (VT_STATIC | VT_INLINE)) {
-            //gr printf("sym %d %s\n", sym->r, get_tok_str(sym->v, NULL));
-            if (sym->r == (VT_SYM | VT_CONST)) //gr beware!
-                continue;
-            str = INLINE_DEF(sym->r);
-            tok_str_free(str);
-            sym->r = 0; /* fail safe */
-        }
     }
 }
 
@@ -4968,7 +4507,7 @@ static void decl(int l)
                     if (!cur_text_section)
                         cur_text_section = text_section;
                     sym->r = VT_SYM | VT_CONST;
-                    gen_function(sym);
+                    //gen_function(sym);
                 }
                 break;
             } else {

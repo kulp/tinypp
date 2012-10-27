@@ -931,32 +931,6 @@ static Sym *label_push(Sym **ptop, int v, int flags)
     return s;
 }
 
-/* pop labels until element last is reached. Look if any labels are
-   undefined. Define symbols if '&&label' was used. */
-static void label_pop(Sym **ptop, Sym *slast)
-{
-    Sym *s, *s1;
-    for(s = *ptop; s != slast; s = s1) {
-        s1 = s->prev;
-        if (s->r == LABEL_DECLARED) {
-            warning("label '%s' declared but not used", get_tok_str(s->v, NULL));
-        } else if (s->r == LABEL_FORWARD) {
-                error("label '%s' used but not defined",
-                      get_tok_str(s->v, NULL));
-        } else {
-            if (s->c) {
-                /* define corresponding symbol. A size of
-                   1 is put. */
-                put_extern_sym(s, cur_text_section, (long)s->next, 1);
-            }
-        }
-        /* remove label */
-        table_ident[s->v - TOK_IDENT]->sym_label = s->prev_tok;
-        sym_free(s);
-    }
-    *ptop = slast;
-}
-
 /* eval an expression for #if/#elif */
 static int expr_preprocess(void)
 {
