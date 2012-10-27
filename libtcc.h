@@ -3,35 +3,11 @@
 
 #define STATIC static
 
-#ifdef LIBTCC_AS_DLL
-#define LIBTCCAPI __declspec(dllexport)
-#else
 #define LIBTCCAPI
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 struct TCCState;
 
 typedef struct TCCState TCCState;
-
-/* create a new TCC compilation context */
-LIBTCCAPI TCCState *tcc_new(void);
-
-/* free a TCC compilation context */
-STATIC LIBTCCAPI void tcc_delete(TCCState *s);
-
-/* add debug information in the generated code */
-LIBTCCAPI void tcc_enable_debug(TCCState *s);
-
-/* set error/warning display callback */
-STATIC LIBTCCAPI void tcc_set_error_func(TCCState *s, void *error_opaque,
-                        void (*error_func)(void *opaque, const char *msg));
-
-/* set/reset a warning */
-STATIC LIBTCCAPI int tcc_set_warning(TCCState *s, const char *warning_name, int value);
 
 /*****************************/
 /* preprocessor */
@@ -86,7 +62,7 @@ STATIC LIBTCCAPI int tcc_add_symbol(TCCState *s, const char *name, void *val);
 
 /* output an executable, library or object file. DO NOT call
    tcc_relocate() before. */
-LIBTCCAPI int tcc_output_file(TCCState *s, const char *filename);
+STATIC LIBTCCAPI int tcc_output_file(TCCState *s, const char *filename);
 
 /* link and run main() function and return its value. DO NOT call
    tcc_relocate() before. */
@@ -98,13 +74,9 @@ STATIC LIBTCCAPI int tcc_run(TCCState *s, int argc, char **argv);
 STATIC LIBTCCAPI int tcc_relocate(TCCState *s1, void *ptr);
 
 /* return symbol value or NULL if not found */
-LIBTCCAPI void *tcc_get_symbol(TCCState *s, const char *name);
+STATIC LIBTCCAPI void *tcc_get_symbol(TCCState *s, const char *name);
 
 /* set CONFIG_TCCDIR at runtime */
 STATIC LIBTCCAPI void tcc_set_lib_path(TCCState *s, const char *path);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

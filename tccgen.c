@@ -235,29 +235,6 @@ void save_reg(int r)
     }
 }
 
-/* find a register of class 'rc2' with at most one reference on stack.
- * If none, call get_reg(rc) */
-int get_reg_ex(int rc, int rc2) 
-{
-    int r;
-    SValue *p;
-    
-    for(r=0;r<NB_REGS;r++) {
-        if (reg_classes[r] & rc2) {
-            int n;
-            n=0;
-            for(p = vstack; p <= vtop; p++) {
-                if ((p->r & VT_VALMASK) == r ||
-                    (p->r2 & VT_VALMASK) == r)
-                    n++;
-            }
-            if (n <= 1)
-                return r;
-        }
-    }
-    return get_reg(rc);
-}
-
 /* find a free register of class 'rc'. If none, save one register */
 int get_reg(int rc)
 {

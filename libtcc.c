@@ -357,15 +357,6 @@ STATIC char *tcc_fileextension (const char *name)
     return e ? e : strchr(b, 0);
 }
 
-STATIC void set_pages_executable(void *ptr, unsigned long length)
-{
-    unsigned long start, end;
-    start = (unsigned long)ptr & ~(PAGESIZE - 1);
-    end = (unsigned long)ptr + length;
-    end = (end + PAGESIZE - 1) & ~(PAGESIZE - 1);
-    mprotect((void *)start, end - start, PROT_READ | PROT_WRITE | PROT_EXEC);
-}
-
 /* memory management */
 #ifdef MEM_DEBUG
 int mem_cur_size;
@@ -532,11 +523,6 @@ Section *new_section(TCCState *s1, const char *name, int sh_type, int sh_flags)
     }
 
     return sec;
-}
-
-static void free_section(Section *s)
-{
-    tcc_free(s->data);
 }
 
 /* realloc section and set its content to zero */
@@ -768,13 +754,6 @@ STATIC void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
     }
     if (!is_warning || s1->warn_error)
         s1->nb_errors++;
-}
-
-STATIC void tcc_set_error_func(TCCState *s, void *error_opaque,
-                        void (*error_func)(void *opaque, const char *msg))
-{
-    s->error_opaque = error_opaque;
-    s->error_func = error_func;
 }
 
 /* error without aborting current compilation */
@@ -1186,34 +1165,6 @@ static int tcc_compile(TCCState *s1)
     return s1->nb_errors != 0 ? -1 : 0;
 }
 
-STATIC int tcc_compile_string(TCCState *s, const char *str)
-{
-    BufferedFile bf1, *bf = &bf1;
-    int ret, len;
-    char *buf;
-
-    /* init file structure */
-    bf->fd = -1;
-    /* XXX: avoid copying */
-    len = strlen(str);
-    buf = tcc_malloc(len + 1);
-    if (!buf)
-        return -1;
-    memcpy(buf, str, len);
-    buf[len] = CH_EOB;
-    bf->buf_ptr = buf;
-    bf->buf_end = buf + len;
-    pstrcpy(bf->filename, sizeof(bf->filename), "<string>");
-    bf->line_num = 1;
-    file = bf;
-    ret = tcc_compile(s);
-    file = NULL;
-    tcc_free(buf);
-
-    /* currently, no need to close */
-    return ret;
-}
-
 /* define a preprocessor symbol. A value can also be provided with the '=' operator */
 STATIC void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
 {
@@ -1284,402 +1235,9 @@ static void asm_global_instr(void)
 #include "tccpe.c"
 #endif
 
-#ifdef CONFIG_TCC_BACKTRACE
-/* print the position in the source file of PC value 'pc' by reading
-   the stabs debug information */
-static void rt_printline(unsigned long wanted_pc)
-{
-    Stab_Sym *sym, *sym_end;
-    char func_name[128], last_func_name[128];
-    unsigned long func_addr, last_pc, pc;
-    const char *incl_files[INCLUDE_STACK_SIZE];
-    int incl_index, len, last_line_num, i;
-    const char *str, *p;
-
-    fprintf(stderr, "0x%08lx:", wanted_pc);
-
-    func_name[0] = '\0';
-    func_addr = 0;
-    incl_index = 0;
-    last_func_name[0] = '\0';
-    last_pc = 0xffffffff;
-    last_line_num = 1;
-    sym = (Stab_Sym *)stab_section->data + 1;
-    sym_end = (Stab_Sym *)(stab_section->data + stab_section->data_offset);
-    while (sym < sym_end) {
-        switch(sym->n_type) {
-            /* function start or end */
-        case N_FUN:
-            if (sym->n_strx == 0) {
-                /* we test if between last line and end of function */
-                pc = sym->n_value + func_addr;
-                if (wanted_pc >= last_pc && wanted_pc < pc)
-                    goto found;
-                func_name[0] = '\0';
-                func_addr = 0;
-            } else {
-                str = stabstr_section->data + sym->n_strx;
-                p = strchr(str, ':');
-                if (!p) {
-                    pstrcpy(func_name, sizeof(func_name), str);
-                } else {
-                    len = p - str;
-                    if (len > sizeof(func_name) - 1)
-                        len = sizeof(func_name) - 1;
-                    memcpy(func_name, str, len);
-                    func_name[len] = '\0';
-                }
-                func_addr = sym->n_value;
-            }
-            break;
-            /* line number info */
-        case N_SLINE:
-            pc = sym->n_value + func_addr;
-            if (wanted_pc >= last_pc && wanted_pc < pc)
-                goto found;
-            last_pc = pc;
-            last_line_num = sym->n_desc;
-            /* XXX: slow! */
-            strcpy(last_func_name, func_name);
-            break;
-            /* include files */
-        case N_BINCL:
-            str = stabstr_section->data + sym->n_strx;
-        add_incl:
-            if (incl_index < INCLUDE_STACK_SIZE) {
-                incl_files[incl_index++] = str;
-            }
-            break;
-        case N_EINCL:
-            if (incl_index > 1)
-                incl_index--;
-            break;
-        case N_SO:
-            if (sym->n_strx == 0) {
-                incl_index = 0; /* end of translation unit */
-            } else {
-                str = stabstr_section->data + sym->n_strx;
-                /* do not add path */
-                len = strlen(str);
-                if (len > 0 && str[len - 1] != '/')
-                    goto add_incl;
-            }
-            break;
-        }
-        sym++;
-    }
-
-    /* second pass: we try symtab symbols (no line number info) */
-    incl_index = 0;
-    {
-        ElfW(Sym) *sym, *sym_end;
-        int type;
-
-        sym_end = (ElfW(Sym) *)(symtab_section->data + symtab_section->data_offset);
-        for(sym = (ElfW(Sym) *)symtab_section->data + 1; 
-            sym < sym_end;
-            sym++) {
-            type = ELFW(ST_TYPE)(sym->st_info);
-            if (type == STT_FUNC) {
-                if (wanted_pc >= sym->st_value &&
-                    wanted_pc < sym->st_value + sym->st_size) {
-                    pstrcpy(last_func_name, sizeof(last_func_name),
-                            strtab_section->data + sym->st_name);
-                    goto found;
-                }
-            }
-        }
-    }
-    /* did not find any info: */
-    fprintf(stderr, " ???\n");
-    return;
- found:
-    if (last_func_name[0] != '\0') {
-        fprintf(stderr, " %s()", last_func_name);
-    }
-    if (incl_index > 0) {
-        fprintf(stderr, " (%s:%d", 
-                incl_files[incl_index - 1], last_line_num);
-        for(i = incl_index - 2; i >= 0; i--)
-            fprintf(stderr, ", included from %s", incl_files[i]);
-        fprintf(stderr, ")");
-    }
-    fprintf(stderr, "\n");
-}
-
-#ifdef __i386__
-/* fix for glibc 2.1 */
-#ifndef REG_EIP
-#define REG_EIP EIP
-#define REG_EBP EBP
-#endif
-
-/* return the PC at frame level 'level'. Return non zero if not found */
-static int rt_get_caller_pc(unsigned long *paddr, 
-                            ucontext_t *uc, int level)
-{
-    unsigned long fp;
-    int i;
-
-    if (level == 0) {
-#if defined(__FreeBSD__)
-        *paddr = uc->uc_mcontext.mc_eip;
-#elif defined(__dietlibc__)
-        *paddr = uc->uc_mcontext.eip;
-#else
-        *paddr = uc->uc_mcontext.gregs[REG_EIP];
-#endif
-        return 0;
-    } else {
-#if defined(__FreeBSD__) 
-        fp = uc->uc_mcontext.mc_ebp;
-#elif defined(__dietlibc__)
-        fp = uc->uc_mcontext.ebp;
-#else
-        fp = uc->uc_mcontext.gregs[REG_EBP];
-#endif
-        for(i=1;i<level;i++) {
-            /* XXX: check address validity with program info */
-            if (fp <= 0x1000 || fp >= 0xc0000000)
-                return -1;
-            fp = ((unsigned long *)fp)[0];
-        }
-        *paddr = ((unsigned long *)fp)[1];
-        return 0;
-    }
-}
-#elif defined(__x86_64__)
-/* return the PC at frame level 'level'. Return non zero if not found */
-static int rt_get_caller_pc(unsigned long *paddr,
-                            ucontext_t *uc, int level)
-{
-    unsigned long fp;
-    int i;
-
-    if (level == 0) {
-        /* XXX: only support linux */
-        *paddr = uc->uc_mcontext.gregs[REG_RIP];
-        return 0;
-    } else {
-        fp = uc->uc_mcontext.gregs[REG_RBP];
-        for(i=1;i<level;i++) {
-            /* XXX: check address validity with program info */
-            if (fp <= 0x1000)
-                return -1;
-            fp = ((unsigned long *)fp)[0];
-        }
-        *paddr = ((unsigned long *)fp)[1];
-        return 0;
-    }
-}
-#else
-#warning add arch specific rt_get_caller_pc()
-static int rt_get_caller_pc(unsigned long *paddr,
-                            ucontext_t *uc, int level)
-{
-    return -1;
-}
-#endif
-
-/* emit a run time error at position 'pc' */
-STATIC void rt_error(ucontext_t *uc, const char *fmt, ...)
-{
-    va_list ap;
-    unsigned long pc;
-    int i;
-
-    va_start(ap, fmt);
-    fprintf(stderr, "Runtime error: ");
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
-    for(i=0;i<num_callers;i++) {
-        if (rt_get_caller_pc(&pc, uc, i) < 0)
-            break;
-        if (i == 0)
-            fprintf(stderr, "at ");
-        else
-            fprintf(stderr, "by ");
-        rt_printline(pc);
-    }
-    exit(255);
-    va_end(ap);
-}
-
-/* signal handler for fatal errors */
-static void sig_error(int signum, siginfo_t *siginf, void *puc)
-{
-    ucontext_t *uc = puc;
-
-    switch(signum) {
-    case SIGFPE:
-        switch(siginf->si_code) {
-        case FPE_INTDIV:
-        case FPE_FLTDIV:
-            rt_error(uc, "division by zero");
-            break;
-        default:
-            rt_error(uc, "floating point exception");
-            break;
-        }
-        break;
-    case SIGBUS:
-    case SIGSEGV:
-        if (rt_bound_error_msg && *rt_bound_error_msg)
-            rt_error(uc, *rt_bound_error_msg);
-        else
-            rt_error(uc, "dereferencing invalid pointer");
-        break;
-    case SIGILL:
-        rt_error(uc, "illegal instruction");
-        break;
-    case SIGABRT:
-        rt_error(uc, "abort() called");
-        break;
-    default:
-        rt_error(uc, "caught signal %d", signum);
-        break;
-    }
-    exit(255);
-}
-
-#endif
-
 /* copy code into memory passed in by the caller and do all relocations
    (needed before using tcc_get_symbol()).
    returns -1 on error and required size if ptr is NULL */
-STATIC int tcc_relocate(TCCState *s1, void *ptr)
-{
-    Section *s;
-    unsigned long offset, length, mem;
-    int i;
-
-    if (0 == s1->runtime_added) {
-        s1->runtime_added = 1;
-        s1->nb_errors = 0;
-#ifdef TCC_TARGET_PE
-        pe_add_runtime(s1);
-        relocate_common_syms();
-        tcc_add_linker_symbols(s1);
-#else
-        tcc_add_runtime(s1);
-        relocate_common_syms();
-        tcc_add_linker_symbols(s1);
-        build_got_entries(s1);
-#endif
-    }
-
-    offset = 0, mem = (unsigned long)ptr;
-    for(i = 1; i < s1->nb_sections; i++) {
-        s = s1->sections[i];
-        if (0 == (s->sh_flags & SHF_ALLOC))
-            continue;
-        length = s->data_offset;
-        s->sh_addr = mem ? (mem + offset + 15) & ~15 : 0;
-        offset = (offset + length + 15) & ~15;
-    }
-
-    /* relocate symbols */
-    relocate_syms(s1, 1);
-    if (s1->nb_errors)
-        return -1;
-
-#ifdef TCC_TARGET_X86_64
-    s1->runtime_plt_and_got_offset = 0;
-    s1->runtime_plt_and_got = (char *)(mem + offset);
-    /* double the size of the buffer for got and plt entries
-       XXX: calculate exact size for them? */
-    offset *= 2;
-#endif
-
-    if (0 == mem)
-        return offset + 15;
-
-    /* relocate each section */
-    for(i = 1; i < s1->nb_sections; i++) {
-        s = s1->sections[i];
-        if (s->reloc)
-            relocate_section(s1, s);
-    }
-
-    for(i = 1; i < s1->nb_sections; i++) {
-        s = s1->sections[i];
-        if (0 == (s->sh_flags & SHF_ALLOC))
-            continue;
-        length = s->data_offset;
-        // printf("%-12s %08x %04x\n", s->name, s->sh_addr, length);
-        ptr = (void*)s->sh_addr;
-        if (NULL == s->data || s->sh_type == SHT_NOBITS)
-            memset(ptr, 0, length);
-        else
-            memcpy(ptr, s->data, length);
-        /* mark executable sections as executable in memory */
-        if (s->sh_flags & SHF_EXECINSTR)
-            set_pages_executable(ptr, length);
-    }
-#ifdef TCC_TARGET_X86_64
-    set_pages_executable(s1->runtime_plt_and_got,
-                         s1->runtime_plt_and_got_offset);
-#endif
-    return 0;
-}
-
-/* launch the compiled program with the given arguments */
-STATIC int tcc_run(TCCState *s1, int argc, char **argv)
-{
-    int (*prog_main)(int, char **);
-    void *ptr;
-    int ret;
-
-    ret = tcc_relocate(s1, NULL);
-    if (ret < 0)
-        return -1;
-    ptr = tcc_malloc(ret);
-    tcc_relocate(s1, ptr);
-
-    prog_main = tcc_get_symbol_err(s1, "main");
-    
-    if (s1->do_debug) {
-#ifdef CONFIG_TCC_BACKTRACE
-        struct sigaction sigact;
-        /* install TCC signal handlers to print debug info on fatal
-           runtime errors */
-        sigact.sa_flags = SA_SIGINFO | SA_RESETHAND;
-        sigact.sa_sigaction = sig_error;
-        sigemptyset(&sigact.sa_mask);
-        sigaction(SIGFPE, &sigact, NULL);
-        sigaction(SIGILL, &sigact, NULL);
-        sigaction(SIGSEGV, &sigact, NULL);
-        sigaction(SIGBUS, &sigact, NULL);
-        sigaction(SIGABRT, &sigact, NULL);
-#else        
-        error("debug mode not available");
-#endif
-    }
-
-#ifdef CONFIG_TCC_BCHECK
-    if (s1->do_bounds_check) {
-        void (*bound_init)(void);
-
-        /* set error function */
-        rt_bound_error_msg = tcc_get_symbol_err(s1, "__bound_error_msg");
-
-        /* XXX: use .init section so that it also work in binary ? */
-        bound_init = (void *)tcc_get_symbol_err(s1, "__bound_init");
-        bound_init();
-    }
-#endif
-    ret = (*prog_main)(argc, argv);
-    tcc_free(ptr);
-    return ret;
-}
-
-STATIC void tcc_memstats(void)
-{
-#ifdef MEM_DEBUG
-    printf("memory in use: %d\n", mem_cur_size);
-#endif
-}
-
 static void tcc_cleanup(void)
 {
     int i, n;
@@ -1805,42 +1363,6 @@ TCCState *tcc_new(void)
     s->leading_underscore = 1;
 #endif
     return s;
-}
-
-STATIC void tcc_delete(TCCState *s1)
-{
-    int i;
-
-    tcc_cleanup();
-
-    /* free all sections */
-    for(i = 1; i < s1->nb_sections; i++)
-        free_section(s1->sections[i]);
-    dynarray_reset(&s1->sections, &s1->nb_sections);
-
-    for(i = 0; i < s1->nb_priv_sections; i++)
-        free_section(s1->priv_sections[i]);
-    dynarray_reset(&s1->priv_sections, &s1->nb_priv_sections);
-        
-    /* free any loaded DLLs */
-    for ( i = 0; i < s1->nb_loaded_dlls; i++) {
-        DLLReference *ref = s1->loaded_dlls[i];
-        if ( ref->handle )
-            dlclose(ref->handle);
-    }
-    
-    /* free loaded dlls array */
-    dynarray_reset(&s1->loaded_dlls, &s1->nb_loaded_dlls);
-
-    /* free library paths */
-    dynarray_reset(&s1->library_paths, &s1->nb_library_paths);
-
-    /* free include paths */
-    dynarray_reset(&s1->cached_includes, &s1->nb_cached_includes);
-    dynarray_reset(&s1->include_paths, &s1->nb_include_paths);
-    dynarray_reset(&s1->sysinclude_paths, &s1->nb_sysinclude_paths);
-
-    tcc_free(s1);
 }
 
 STATIC int tcc_add_include_path(TCCState *s1, const char *pathname)
@@ -2037,14 +1559,6 @@ STATIC int tcc_add_library(TCCState *s, const char *libraryname)
     return -1;
 }
 
-STATIC int tcc_add_symbol(TCCState *s, const char *name, void *val)
-{
-    add_elf_sym(symtab_section, (unsigned long)val, 0, 
-                ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
-                SHN_ABS, name);
-    return 0;
-}
-
 STATIC int tcc_set_output_type(TCCState *s, int output_type)
 {
     char buf[1024];
@@ -2130,49 +1644,6 @@ static const FlagDef warning_defs[] = {
       "implicit-function-declaration" },
 };
 
-static int set_flag(TCCState *s, const FlagDef *flags, int nb_flags,
-                    const char *name, int value)
-{
-    int i;
-    const FlagDef *p;
-    const char *r;
-
-    r = name;
-    if (r[0] == 'n' && r[1] == 'o' && r[2] == '-') {
-        r += 3;
-        value = !value;
-    }
-    for(i = 0, p = flags; i < nb_flags; i++, p++) {
-        if (!strcmp(r, p->name))
-            goto found;
-    }
-    return -1;
- found:
-    if (p->flags & FD_INVERT)
-        value = !value;
-    *(int *)((uint8_t *)s + p->offset) = value;
-    return 0;
-}
-
-
-/* set/reset a warning */
-STATIC int tcc_set_warning(TCCState *s, const char *warning_name, int value)
-{
-    int i;
-    const FlagDef *p;
-
-    if (!strcmp(warning_name, "all")) {
-        for(i = 0, p = warning_defs; i < countof(warning_defs); i++, p++) {
-            if (p->flags & WD_ALL)
-                *(int *)((uint8_t *)s + p->offset) = 1;
-        }
-        return 0;
-    } else {
-        return set_flag(s, warning_defs, countof(warning_defs),
-                        warning_name, value);
-    }
-}
-
 static const FlagDef flag_defs[] = {
     { offsetof(TCCState, char_is_unsigned), 0, "unsigned-char" },
     { offsetof(TCCState, char_is_unsigned), FD_INVERT, "signed-char" },
@@ -2180,29 +1651,3 @@ static const FlagDef flag_defs[] = {
     { offsetof(TCCState, leading_underscore), 0, "leading-underscore" },
 };
 
-/* set/reset a flag */
-STATIC int tcc_set_flag(TCCState *s, const char *flag_name, int value)
-{
-    return set_flag(s, flag_defs, countof(flag_defs),
-                    flag_name, value);
-}
-
-/* set CONFIG_TCCDIR at runtime */
-STATIC void tcc_set_lib_path(TCCState *s, const char *path)
-{
-    s->tcc_lib_path = tcc_strdup(path);
-}
-
-STATIC void tcc_print_stats(TCCState *s, int64_t total_time)
-{
-    double tt;
-    tt = (double)total_time / 1000000.0;
-    if (tt < 0.001)
-        tt = 0.001;
-    if (total_bytes < 1)
-        total_bytes = 1;
-    printf("%d idents, %d lines, %d bytes, %0.3f s, %d lines/s, %0.1f MB/s\n", 
-           tok_ident - TOK_IDENT, total_lines, total_bytes,
-           tt, (int)(total_lines / tt),
-           total_bytes / tt / 1000000.0);
-}
