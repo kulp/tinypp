@@ -2,6 +2,7 @@
  *  TCC - Tiny C Compiler
  * 
  *  Copyright (c) 2001-2004 Fabrice Bellard
+ *  Modifications (c) 2012 Darren Kulp
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -34,7 +35,6 @@
 
 #include <unistd.h>
 #include <sys/time.h>
-#include <sys/ucontext.h>
 #include <sys/mman.h>
 
 #ifndef PAGESIZE
