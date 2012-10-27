@@ -70,7 +70,6 @@ static TokenSym *hash_ident[TOK_HASH_SIZE];
 static char token_buf[STRING_MAX_SIZE + 1];
 static Sym *global_stack, *local_stack;
 static Sym *define_stack;
-static Sym *global_label_stack;
 /* symbol allocator */
 #define SYM_POOL_NB (8192 / sizeof(Sym))
 static Sym *sym_free_first;
@@ -98,25 +97,14 @@ static void next(void);
 STATIC char *get_tok_str(int v, CValue *cv);
 
 /* tccgen.c */
-static void parse_expr_type(CType *type);
-static void expr_type(CType *type);
-static void unary_type(CType *type);
 static int expr_const(void);
 static void expr_eq(void);
 static void gexpr(void);
 static void decl_initializer(CType *type, Section *sec, unsigned long c, 
                              int first, int size_only);
-static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, 
-                                   int has_init, int v, int scope);
-STATIC int gv(int rc);
-STATIC void gv2(int rc1, int rc2);
-STATIC void move_reg(int r, int s);
-STATIC void save_regs(int n);
-STATIC void save_reg(int r);
 STATIC void vpop(void);
 STATIC void vswap(void);
 STATIC void vdup(void);
-STATIC int get_reg(int rc);
 
 STATIC void gen_op(int op);
 STATIC void force_charshort_cast(int t);
@@ -136,8 +124,6 @@ static int is_compatible_parameter_types(CType *type1, CType *type2);
 
 STATIC void vpushi(int v);
 STATIC void vpushll(long long v);
-STATIC void vrott(int n);
-static void vpush_global_sym(CType *type, int v);
 STATIC void vset(CType *type, int r, int v);
 STATIC void type_to_str(char *buf, int buf_size, 
                  CType *type, const char *varstr);
@@ -145,7 +131,6 @@ static Sym *external_global_sym(int v, CType *type, int r);
 
 /* section generation */
 static void section_realloc(Section *sec, unsigned long new_size);
-static void *section_ptr_add(Section *sec, unsigned long size);
 
 #define AFF_PRINT_ERROR     0x0001 /* print error if file not found */
 #define AFF_REFERENCED_DLL  0x0002 /* load a referenced dll from another dll */

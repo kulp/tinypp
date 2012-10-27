@@ -907,32 +907,6 @@ static void free_defines(Sym *b)
     define_stack = b;
 }
 
-/* label lookup */
-static Sym *label_find(int v)
-{
-    v -= TOK_IDENT;
-    if ((unsigned)v >= (unsigned)(tok_ident - TOK_IDENT))
-        return NULL;
-    return table_ident[v]->sym_label;
-}
-
-static Sym *label_push(Sym **ptop, int v, int flags)
-{
-    Sym *s, **ps;
-    s = sym_push2(ptop, v, 0, 0);
-    s->r = flags;
-    ps = &table_ident[v - TOK_IDENT]->sym_label;
-    if (ptop == &global_label_stack) {
-        /* modify the top most local identifier, so that
-           sym_identifier will point to 's' when popped */
-        while (*ps != NULL)
-            ps = &(*ps)->prev_tok;
-    }
-    s->prev_tok = *ps;
-    *ps = s;
-    return s;
-}
-
 /* eval an expression for #if/#elif */
 static int expr_preprocess(void)
 {

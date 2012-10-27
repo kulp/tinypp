@@ -28,7 +28,6 @@
 #define ELF_START_ADDR 0x08048000
 #define ELF_PAGE_SIZE  0x1000
 #define psym oad
-#define FUNC_PROLOG_SIZE 12
 #define FUNC_PROLOG_SIZE 11
 /* pretty names for the registers */
 enum {
