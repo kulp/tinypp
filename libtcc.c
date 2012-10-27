@@ -56,12 +56,7 @@ static int parse_flags;
 static Section *last_text_section; /* to handle .previous asm directive */
 #endif
 
-/* loc : local variable index
-   rsym: return symbol
-*/
-static int loc;
 /* expression generation modifiers */
-static int const_wanted; /* true if constant wanted */
 static int global_expr;  /* true if compound literals must be allocated
                             globally (used during initializers parsing */
 static int tok_ident;
@@ -106,9 +101,6 @@ STATIC void vpop(void);
 STATIC void vswap(void);
 STATIC void vdup(void);
 
-STATIC void gen_op(int op);
-STATIC void force_charshort_cast(int t);
-static void gen_cast(CType *type);
 STATIC void vstore(void);
 static Sym *sym_find(int v);
 static Sym *sym_push(int v, CType *type, int r, int c);
@@ -116,14 +108,12 @@ static Sym *sym_push(int v, CType *type, int r, int c);
 /* type handling */
 static int type_size(CType *type, int *a);
 static inline CType *pointed_type(CType *type);
-static int pointed_size(CType *type);
 static int lvalue_type(int t);
 static int compare_types(CType *type1, CType *type2, int unqualified);
 static int is_compatible_types(CType *type1, CType *type2);
 static int is_compatible_parameter_types(CType *type1, CType *type2);
 
 STATIC void vpushi(int v);
-STATIC void vpushll(long long v);
 STATIC void vset(CType *type, int r, int v);
 STATIC void type_to_str(char *buf, int buf_size, 
                  CType *type, const char *varstr);
@@ -155,15 +145,6 @@ typedef struct TCCSyms {
 #define TCCSYM(a) { #a, &a, },
 
 /********************************************************/
-
-/* we use our own 'finite' function to avoid potential problems with
-   non standard math libs */
-/* XXX: endianness dependent */
-STATIC int ieee_finite(double d)
-{
-    int *p = (int *)&d;
-    return ((unsigned)((p[1] | 0x800fffff) + 1)) >> 31;
-}
 
 /* copy a string and truncate it. */
 STATIC char *pstrcpy(char *buf, int buf_size, const char *s)

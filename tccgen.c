@@ -18,14 +18,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-STATIC void swap(int *p, int *q)
-{
-    int t;
-    t = *p;
-    *p = *q;
-    *q = t;
-}
-
 STATIC void vsetc(CType *type, int r, CValue *vc)
 {
     int v;
@@ -135,204 +127,6 @@ STATIC void vpop(void)
     vtop--;
 }
 
-/* handle integer constant optimizations and various machine
-   independent opt */
-STATIC void gen_opic(int op)
-{
-    int c1, c2, t1, t2, n;
-    SValue *v1, *v2;
-    long long l1, l2;
-    typedef unsigned long long U;
-
-    v1 = vtop - 1;
-    v2 = vtop;
-    t1 = v1->type.t & VT_BTYPE;
-    t2 = v2->type.t & VT_BTYPE;
-
-    if (t1 == VT_LLONG)
-        l1 = v1->c.ll;
-    else if (v1->type.t & VT_UNSIGNED)
-        l1 = v1->c.ui;
-    else
-        l1 = v1->c.i;
-
-    if (t2 == VT_LLONG)
-        l2 = v2->c.ll;
-    else if (v2->type.t & VT_UNSIGNED)
-        l2 = v2->c.ui;
-    else
-        l2 = v2->c.i;
-
-    /* currently, we cannot do computations with forward symbols */
-    c1 = (v1->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
-    c2 = (v2->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
-    if (c1 && c2) {
-        switch(op) {
-        case '+': l1 += l2; break;
-        case '-': l1 -= l2; break;
-        case '&': l1 &= l2; break;
-        case '^': l1 ^= l2; break;
-        case '|': l1 |= l2; break;
-        case '*': l1 *= l2; break;
-
-        case TOK_PDIV:
-        case '/':
-        case '%':
-        case TOK_UDIV:
-        case TOK_UMOD:
-            /* if division by zero, generate explicit division */
-            if (l2 == 0) {
-                if (const_wanted)
-                    error("division by zero in constant");
-                goto general_case;
-            }
-            switch(op) {
-            default: l1 /= l2; break;
-            case '%': l1 %= l2; break;
-            case TOK_UDIV: l1 = (U)l1 / l2; break;
-            case TOK_UMOD: l1 = (U)l1 % l2; break;
-            }
-            break;
-        case TOK_SHL: l1 <<= l2; break;
-        case TOK_SHR: l1 = (U)l1 >> l2; break;
-        case TOK_SAR: l1 >>= l2; break;
-            /* tests */
-        case TOK_ULT: l1 = (U)l1 < (U)l2; break;
-        case TOK_UGE: l1 = (U)l1 >= (U)l2; break;
-        case TOK_EQ: l1 = l1 == l2; break;
-        case TOK_NE: l1 = l1 != l2; break;
-        case TOK_ULE: l1 = (U)l1 <= (U)l2; break;
-        case TOK_UGT: l1 = (U)l1 > (U)l2; break;
-        case TOK_LT: l1 = l1 < l2; break;
-        case TOK_GE: l1 = l1 >= l2; break;
-        case TOK_LE: l1 = l1 <= l2; break;
-        case TOK_GT: l1 = l1 > l2; break;
-            /* logical */
-        case TOK_LAND: l1 = l1 && l2; break;
-        case TOK_LOR: l1 = l1 || l2; break;
-        default:
-            goto general_case;
-        }
-        v1->c.ll = l1;
-        vtop--;
-    } else {
-        /* if commutative ops, put c2 as constant */
-        if (c1 && (op == '+' || op == '&' || op == '^' || 
-                   op == '|' || op == '*')) {
-            vswap();
-            c2 = c1; //c = c1, c1 = c2, c2 = c;
-            l2 = l1; //l = l1, l1 = l2, l2 = l;
-        }
-        /* Filter out NOP operations like x*1, x-0, x&-1... */
-        if (c2 && (((op == '*' || op == '/' || op == TOK_UDIV || 
-                     op == TOK_PDIV) && 
-                    l2 == 1) ||
-                   ((op == '+' || op == '-' || op == '|' || op == '^' || 
-                     op == TOK_SHL || op == TOK_SHR || op == TOK_SAR) && 
-                    l2 == 0) ||
-                   (op == '&' && 
-                    l2 == -1))) {
-            /* nothing to do */
-            vtop--;
-        } else if (c2 && (op == '*' || op == TOK_PDIV || op == TOK_UDIV)) {
-            /* try to use shifts instead of muls or divs */
-            if (l2 > 0 && (l2 & (l2 - 1)) == 0) {
-                n = -1;
-                while (l2) {
-                    l2 >>= 1;
-                    n++;
-                }
-                vtop->c.ll = n;
-                if (op == '*')
-                    op = TOK_SHL;
-                else if (op == TOK_PDIV)
-                    op = TOK_SAR;
-                else
-                    op = TOK_SHR;
-            }
-            goto general_case;
-        } else if (c2 && (op == '+' || op == '-') &&
-                   ((vtop[-1].r & (VT_VALMASK | VT_LVAL | VT_SYM)) ==
-                   (VT_CONST | VT_SYM) ||
-                   (vtop[-1].r & (VT_VALMASK | VT_LVAL)) == VT_LOCAL)) {
-            /* symbol + constant case */
-            if (op == '-')
-                l2 = -l2;
-            vtop--;
-            vtop->c.ll += l2;
-        } else {
-        general_case:
-            vtop--;
-        }
-    }
-}
-
-/* generate a floating point operation with constant propagation */
-STATIC void gen_opif(int op)
-{
-    int c1, c2;
-    SValue *v1, *v2;
-    long double f1, f2;
-
-    v1 = vtop - 1;
-    v2 = vtop;
-    /* currently, we cannot do computations with forward symbols */
-    c1 = (v1->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
-    c2 = (v2->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
-    if (c1 && c2) {
-        if (v1->type.t == VT_FLOAT) {
-            f1 = v1->c.f;
-            f2 = v2->c.f;
-        } else if (v1->type.t == VT_DOUBLE) {
-            f1 = v1->c.d;
-            f2 = v2->c.d;
-        } else {
-            f1 = v1->c.ld;
-            f2 = v2->c.ld;
-        }
-
-        /* NOTE: we only do constant propagation if finite number (not
-           NaN or infinity) (ANSI spec) */
-        if (!ieee_finite(f1) || !ieee_finite(f2))
-            goto general_case;
-
-        switch(op) {
-        case '+': f1 += f2; break;
-        case '-': f1 -= f2; break;
-        case '*': f1 *= f2; break;
-        case '/': 
-            if (f2 == 0.0) {
-                if (const_wanted)
-                    error("division by zero in constant");
-                goto general_case;
-            }
-            f1 /= f2; 
-            break;
-            /* XXX: also handles tests ? */
-        default:
-            goto general_case;
-        }
-        /* XXX: overflow test ? */
-        if (v1->type.t == VT_FLOAT) {
-            v1->c.f = f1;
-        } else if (v1->type.t == VT_DOUBLE) {
-            v1->c.d = f1;
-        } else {
-            v1->c.ld = f1;
-        }
-        vtop--;
-    } else {
-    general_case:
-        vtop--;
-    }
-}
-
-static int pointed_size(CType *type)
-{
-    int align;
-    return type_size(pointed_type(type), &align);
-}
-
 static inline int is_null_pointer(SValue *p)
 {
     if ((p->r & (VT_VALMASK | VT_LVAL | VT_SYM)) != VT_CONST)
@@ -345,54 +139,6 @@ static inline int is_integer_btype(int bt)
 {
     return (bt == VT_BYTE || bt == VT_SHORT || 
             bt == VT_INT || bt == VT_LLONG);
-}
-
-/* check types for comparison or substraction of pointers */
-static void check_comparison_pointer_types(SValue *p1, SValue *p2, int op)
-{
-    CType *type1, *type2, tmp_type1, tmp_type2;
-    int bt1, bt2;
-    
-    /* null pointers are accepted for all comparisons as gcc */
-    if (is_null_pointer(p1) || is_null_pointer(p2))
-        return;
-    type1 = &p1->type;
-    type2 = &p2->type;
-    bt1 = type1->t & VT_BTYPE;
-    bt2 = type2->t & VT_BTYPE;
-    /* accept comparison between pointer and integer with a warning */
-    if ((is_integer_btype(bt1) || is_integer_btype(bt2)) && op != '-') {
-        if (op != TOK_LOR && op != TOK_LAND )
-            warning("comparison between pointer and integer");
-        return;
-    }
-
-    /* both must be pointers or implicit function pointers */
-    if (bt1 == VT_PTR) {
-        type1 = pointed_type(type1);
-    } else if (bt1 != VT_FUNC) 
-        goto invalid_operands;
-
-    if (bt2 == VT_PTR) {
-        type2 = pointed_type(type2);
-    } else if (bt2 != VT_FUNC) { 
-    invalid_operands:
-        error("invalid operands to binary %s", get_tok_str(op, NULL));
-    }
-    if ((type1->t & VT_BTYPE) == VT_VOID || 
-        (type2->t & VT_BTYPE) == VT_VOID)
-        return;
-    tmp_type1 = *type1;
-    tmp_type2 = *type2;
-    tmp_type1.t &= ~(VT_UNSIGNED | VT_CONSTANT | VT_VOLATILE);
-    tmp_type2.t &= ~(VT_UNSIGNED | VT_CONSTANT | VT_VOLATILE);
-    if (!is_compatible_types(&tmp_type1, &tmp_type2)) {
-        /* gcc-like error if '-' is used */
-        if (op == '-')
-            goto invalid_operands;
-        else
-            warning("comparison of distinct pointer types lacks a cast");
-    }
 }
 
 /* cast 'vtop' to 'type'. Casting to bitfields is forbidden. */
@@ -813,7 +559,7 @@ static void gen_assign_cast(CType *dt)
 /* store vtop in lvalue pushed on stack */
 STATIC void vstore(void)
 {
-    int sbt, dbt, ft, r, t, size, align, bit_size, bit_pos, rc, delayed_cast;
+    int sbt, dbt, ft, delayed_cast;
 
     ft = vtop[-1].type.t;
     sbt = vtop->type.t & VT_BTYPE;
@@ -934,10 +680,8 @@ static void vpush_tokc(int t)
 
 static void unary(void)
 {
-    int n, t, align, size, r;
-    CType type;
+    int t, r;
     Sym *s;
-    AttributeDef ad;
 
     /* XXX: GCC 2.95.3 does not generate a table although it should be
        better here */
@@ -986,6 +730,7 @@ static void unary(void)
         unary();
         indir();
         break;
+#if 0
     case '&':
         next();
         unary();
@@ -1000,6 +745,7 @@ static void unary(void)
         mk_pointer(&vtop->type);
         gaddrof();
         break;
+#endif
     case '!':
         next();
         unary();
@@ -1037,7 +783,6 @@ static void unary(void)
     case TOK_LAND:
         // fallthrough
     default:
-    tok_identifier:
         t = tok;
         next();
         if (t < TOK_UIDENT)
@@ -1302,32 +1047,26 @@ static void expr_lor_const(void)
 /* XXX: better constant handling */
 static void expr_eq(void)
 {
-    int tt, u, r1, r2, rc, t1, t2, bt1, bt2;
-    SValue sv;
-    CType type, type1, type2;
-
-    if (const_wanted) {
-        expr_lor_const();
-        if (tok == '?') {
-            CType boolean;
-            int c;
-            boolean.t = VT_BOOL;
-            vdup();
-            gen_cast(&boolean);
-            c = vtop->c.i;
+    expr_lor_const();
+    if (tok == '?') {
+        CType boolean;
+        int c;
+        boolean.t = VT_BOOL;
+        vdup();
+        gen_cast(&boolean);
+        c = vtop->c.i;
+        vpop();
+        next();
+        if (tok != ':' || !gnu_ext) {
             vpop();
-            next();
-            if (tok != ':' || !gnu_ext) {
-                vpop();
-                gexpr();
-            }
-            if (!c)
-                vpop();
-            skip(':');
-            expr_eq();
-            if (c)
-                vpop();
+            gexpr();
         }
+        if (!c)
+            vpop();
+        skip(':');
+        expr_eq();
+        if (c)
+            vpop();
     }
 }
 
@@ -1342,21 +1081,11 @@ static void gexpr(void)
     }
 }
 
-/* parse a constant expression and return value in vtop.  */
-static void expr_const1(void)
-{
-    int a;
-    a = const_wanted;
-    const_wanted = 1;
-    expr_eq();
-    const_wanted = a;
-}
-
 /* parse an integer constant and return its value. */
 static int expr_const(void)
 {
     int c;
-    expr_const1();
+    expr_eq();
     if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) != VT_CONST)
         expect("constant expression");
     c = vtop->c.i;
@@ -1526,7 +1255,7 @@ static void init_putv(CType *type, Section *sec, unsigned long c,
         /* compound literals must be allocated globally in this case */
         saved_global_expr = global_expr;
         global_expr = 1;
-        expr_const1();
+        expr_eq();
         global_expr = saved_global_expr;
         /* NOTE: symbols are accepted */
         if ((vtop->r & (VT_VALMASK | VT_LVAL)) != VT_CONST)
@@ -1612,9 +1341,9 @@ static void init_putv(CType *type, Section *sec, unsigned long c,
 static void decl_initializer(CType *type, Section *sec, unsigned long c, 
                              int first, int size_only)
 {
-    int index, array_length, n, no_oblock, nb, parlevel, i;
+    int index, array_length, n, no_oblock;
     int size1, align1, expr_type;
-    Sym *s, *f;
+    Sym *s;
     CType *t1;
 
     if (type->t & VT_ARRAY) {
