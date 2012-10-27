@@ -15,7 +15,7 @@ ifeq ($(TOP),.)
 
 PROGS=tcc$(EXESUF)
 
-CORE_FILES = tcc.c libtcc.c tccpp.c tccgen.c tccelf.c tccasm.c \
+CORE_FILES = tcc.c libtcc.c tccpp.c tccgen.c \
     tcc.h config.h libtcc.h tcctok.h
 X86_64_FILES = $(CORE_FILES) x86_64-gen.c
 
