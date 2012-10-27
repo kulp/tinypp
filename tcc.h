@@ -21,12 +21,6 @@
 #define _GNU_SOURCE
 #include "config.h"
 
-#ifdef CONFIG_TCCBOOT
-
-#include "tccboot.h"
-#define CONFIG_TCC_STATIC
-
-#else
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -39,21 +33,18 @@
 #include <setjmp.h>
 #include <time.h>
 
-#ifndef _WIN32
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/ucontext.h>
 #include <sys/mman.h>
-#endif
 
-#endif /* !CONFIG_TCCBOOT */
+#define STATIC static
 
 #ifndef PAGESIZE
 #define PAGESIZE 4096
 #endif
 
 #include "elf.h"
-#include "stab.h"
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -61,59 +52,11 @@
 
 #include "libtcc.h"
 
-/* parser debug */
-//#define PARSE_DEBUG
-/* preprocessor debug */
-//#define PP_DEBUG
-/* include file debug */
-//#define INC_DEBUG
-
-//#define MEM_DEBUG
-
-/* assembler debug */
-//#define ASM_DEBUG
-
-/* target selection */
-//#define TCC_TARGET_I386   /* i386 code generator */
-//#define TCC_TARGET_ARM    /* ARMv4 code generator */
-//#define TCC_TARGET_C67    /* TMS320C67xx code generator */
-//#define TCC_TARGET_X86_64 /* x86-64 code generator */
-
-/* default target is I386 */
-#if !defined(TCC_TARGET_I386) && !defined(TCC_TARGET_ARM) && \
-    !defined(TCC_TARGET_C67) && !defined(TCC_TARGET_X86_64)
-#define TCC_TARGET_I386
-#endif
-
-#if !defined(_WIN32) && !defined(TCC_UCLIBC) && !defined(TCC_TARGET_ARM) && \
-    !defined(TCC_TARGET_C67) && !defined(TCC_TARGET_X86_64)
-#define CONFIG_TCC_BCHECK /* enable bound checking code */
-#endif
-
-/* define it to include assembler support */
-#if !defined(TCC_TARGET_ARM) && !defined(TCC_TARGET_C67) && \
-    !defined(TCC_TARGET_X86_64)
-#define CONFIG_TCC_ASM
-#endif
-
-/* object format selection */
-#if defined(TCC_TARGET_C67)
-#define TCC_TARGET_COFF
-#endif
-
-#if !defined(_WIN32) && !defined(CONFIG_TCCBOOT)
-#define CONFIG_TCC_BACKTRACE
-#endif
-
 #define FALSE 0
 #define false 0
 #define TRUE 1
 #define true 1
 typedef int BOOL;
-
-/* path to find crt1.o, crti.o and crtn.o. Only needed when generating
-   executables or dlls */
-#define CONFIG_TCC_CRT_PREFIX CONFIG_SYSROOT "/usr/lib"
 
 #define INCLUDE_STACK_SIZE  32
 #define IFDEF_STACK_SIZE    64
@@ -137,11 +80,7 @@ typedef struct TokenSym {
     char str[1];
 } TokenSym;
 
-#ifdef TCC_TARGET_PE
-typedef unsigned short nwchar_t;
-#else
 typedef int nwchar_t;
-#endif
 
 typedef struct CString {
     int size; /* size in bytes */
@@ -329,28 +268,6 @@ typedef struct CachedInclude {
 
 #define CACHED_INCLUDES_HASH_SIZE 512
 
-#ifdef CONFIG_TCC_ASM
-typedef struct ExprValue {
-    uint32_t v;
-    Sym *sym;
-} ExprValue;
-
-#define MAX_ASM_OPERANDS 30
-typedef struct ASMOperand {
-    int id; /* GCC 3 optionnal identifier (0 if number only supported */
-    char *constraint;
-    char asm_str[16]; /* computed asm string for operand */
-    SValue *vt; /* C value of the expression */
-    int ref_index; /* if >= 0, gives reference to a output constraint */
-    int input_index; /* if >= 0, gives reference to an input constraint */
-    int priority; /* priority, used to assign registers */
-    int reg; /* if >= 0, register number used for this operand */
-    int is_llong; /* true if double register value */
-    int is_memory; /* true if memory operand */
-    int is_rw;     /* for '+' modifier */
-} ASMOperand;
-
-#endif
 
 struct TCCState {
     int output_type;
@@ -466,11 +383,9 @@ struct TCCState {
     /* for tcc_relocate */
     int runtime_added;
 
-#ifdef TCC_TARGET_X86_64
     /* write PLT and GOT here */
     char *runtime_plt_and_got;
     unsigned int runtime_plt_and_got_offset;
-#endif
 };
 
 /* The current value can be: */
@@ -676,22 +591,9 @@ enum tcc_token {
 
 #define TOK_UIDENT TOK_DEFINE
 
-#if defined(TCC_UCLIBC) || defined(__FreeBSD__) || defined(__DragonFly__) \
-    || defined(__OpenBSD__)
-/* currently incorrect */
-long double strtold(const char *nptr, char **endptr)
-{
-    return (long double)strtod(nptr, endptr);
-}
-float strtof(const char *nptr, char **endptr)
-{
-    return (float)strtod(nptr, endptr);
-}
-#else
 /* XXX: need to define this to use them in non ISOC99 context */
 extern float strtof (const char *__nptr, char **__endptr);
 extern long double strtold (const char *__nptr, char **__endptr);
-#endif
 
 #define IS_PATHSEP(c) (c == '/')
 #define IS_ABSPATH(p) IS_PATHSEP(p[0])
@@ -716,10 +618,6 @@ STATIC char *pstrcat(char *buf, int buf_size, const char *s);
 STATIC void dynarray_add(void ***ptab, int *nb_ptr, void *data);
 STATIC void dynarray_reset(void *pp, int *n);
 
-#ifdef CONFIG_TCC_BACKTRACE
-extern int num_callers;
-extern const char **rt_bound_error_msg;
-#endif
 
 /* space exlcuding newline */
 static inline int is_space(int ch)

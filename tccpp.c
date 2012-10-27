@@ -1024,10 +1024,6 @@ static void parse_define(void)
     if (spc == 1)
         --str.len; /* remove trailing space */
     tok_str_add(&str, 0);
-#ifdef PP_DEBUG
-    printf("define %s %d: ", get_tok_str(v, NULL), t);
-    tok_print(str.str);
-#endif
     define_push(v, t, str.str, first);
 }
 
@@ -1074,9 +1070,6 @@ static inline void add_cached_include(TCCState *s1, int type,
 
     if (search_cached_include(s1, type, filename))
         return;
-#ifdef INC_DEBUG
-    printf("adding cached '%s' %s\n", filename, get_tok_str(ifndef_macro, NULL));
-#endif
     e = tcc_malloc(sizeof(CachedInclude) + strlen(filename));
     if (!e)
         return;
@@ -1264,9 +1257,6 @@ static void preprocess(int is_bof)
             if (e && define_find(e->ifndef_macro)) {
                 /* no need to parse the include because the 'ifndef macro'
                    is defined */
-#ifdef INC_DEBUG
-                printf("%s: skipping %s\n", file->filename, buf);
-#endif
                 f = NULL;
             }  else {
                 f = tcc_open(s1, buf1);
@@ -1284,9 +1274,6 @@ static void preprocess(int is_bof)
             if (!f)
                 goto include_done;
 
-#ifdef INC_DEBUG
-            printf("%s: including %s\n", file->filename, buf1);
-#endif
 
            /* XXX: fix current line init */
            /* push current file in stack */
@@ -1315,9 +1302,6 @@ include_done:
             error("invalid argument for '#if%sdef'", c ? "n" : "");
         if (is_bof) {
             if (c) {
-#ifdef INC_DEBUG
-                printf("#ifndef %s\n", get_tok_str(tok, NULL));
-#endif
                 file->ifndef_macro = tok;
             }
         }
@@ -1895,9 +1879,6 @@ static inline void next_nomacro1(void)
                 /* test if previous '#endif' was after a #ifdef at
                    start of file */
                 if (tok_flags & TOK_FLAG_ENDIF) {
-#ifdef INC_DEBUG
-                    printf("#endif %s\n", get_tok_str(file->ifndef_macro_saved, NULL));
-#endif
                     add_cached_include(s1, file->inc_type, file->inc_filename,
                                        file->ifndef_macro_saved);
                 }
@@ -2315,9 +2296,6 @@ static int *macro_arg_subst(Sym **nested_list, int *macro_str, Sym *args)
                 }
                 cstr.size -= spc;
                 cstr_ccat(&cstr, '\0');
-#ifdef PP_DEBUG
-                printf("stringize: %s\n", (char *)cstr.data);
-#endif
                 /* add string */
                 cval.cstr = &cstr;
                 tok_str_add2(&str, TOK_STR, &cval);

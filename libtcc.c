@@ -52,9 +52,6 @@ static int parse_flags;
 #define PARSE_FLAG_ASM_COMMENTS 0x0008 /* '#' can be used for line comment */
 #define PARSE_FLAG_SPACES     0x0010 /* next() returns space tokens (for -E) */
  
-#ifdef CONFIG_TCC_ASM
-static Section *last_text_section; /* to handle .previous asm directive */
-#endif
 
 /* expression generation modifiers */
 static int tok_ident;
@@ -173,17 +170,9 @@ STATIC char *tcc_fileextension (const char *name)
 }
 
 /* memory management */
-#ifdef MEM_DEBUG
-int mem_cur_size;
-int mem_max_size;
-unsigned malloc_usable_size(void*);
-#endif
 
 STATIC void tcc_free(void *ptr)
 {
-#ifdef MEM_DEBUG
-    mem_cur_size -= malloc_usable_size(ptr);
-#endif
     free(ptr);
 }
 
@@ -193,11 +182,6 @@ STATIC void *tcc_malloc(unsigned long size)
     ptr = malloc(size);
     if (!ptr && size)
         error("memory full");
-#ifdef MEM_DEBUG
-    mem_cur_size += malloc_usable_size(ptr);
-    if (mem_cur_size > mem_max_size)
-        mem_max_size = mem_cur_size;
-#endif
     return ptr;
 }
 
@@ -212,16 +196,7 @@ STATIC void *tcc_mallocz(unsigned long size)
 STATIC void *tcc_realloc(void *ptr, unsigned long size)
 {
     void *ptr1;
-#ifdef MEM_DEBUG
-    mem_cur_size -= malloc_usable_size(ptr);
-#endif
     ptr1 = realloc(ptr, size);
-#ifdef MEM_DEBUG
-    /* NOTE: count not correct if alloc error, but not critical */
-    mem_cur_size += malloc_usable_size(ptr1);
-    if (mem_cur_size > mem_max_size)
-        mem_max_size = mem_cur_size;
-#endif
     return ptr1;
 }
 

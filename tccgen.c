@@ -163,14 +163,6 @@ STATIC void vstore(void)
         vpop();
         /* leave source on stack */
     } else {
-#ifdef CONFIG_TCC_BCHECK
-        /* bound check case */
-        if (vtop[-1].r & VT_MUSTBOUND) {
-            vswap();
-            gbound();
-            vswap();
-        }
-#endif
         vswap();
         vtop--; /* NOT vpop() because on x86 it would flush the fp stack */
         vtop->r |= delayed_cast;
