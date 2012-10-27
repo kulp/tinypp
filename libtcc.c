@@ -183,46 +183,12 @@ static Sym *external_global_sym(int v, CType *type, int r);
 /* section generation */
 static void section_realloc(Section *sec, unsigned long new_size);
 static void *section_ptr_add(Section *sec, unsigned long size);
-static int put_elf_str(Section *s, const char *sym);
-static int put_elf_sym(Section *s, 
-                       unsigned long value, unsigned long size,
-                       int info, int other, int shndx, const char *name);
-static void put_elf_reloc(Section *symtab, Section *s, unsigned long offset,
-                          int type, int symbol);
-static void put_stabs(const char *str, int type, int other, int desc, 
-                      unsigned long value);
-static void put_stabs_r(const char *str, int type, int other, int desc, 
-                        unsigned long value, Section *sec, int sym_index);
-static void put_stabn(int type, int other, int desc, int value);
-static void put_stabd(int type, int other, int desc);
 static int tcc_add_dll(TCCState *s, const char *filename, int flags);
 
 #define AFF_PRINT_ERROR     0x0001 /* print error if file not found */
 #define AFF_REFERENCED_DLL  0x0002 /* load a referenced dll from another dll */
 #define AFF_PREPROCESS      0x0004 /* preprocess file */
 static int tcc_add_file_internal(TCCState *s, const char *filename, int flags);
-
-/* tcccoff.c */
-STATIC int tcc_output_coff(TCCState *s1, FILE *f);
-
-/* tccpe.c */
-STATIC void *resolve_sym(TCCState *s1, const char *sym, int type);
-STATIC int pe_load_def_file(struct TCCState *s1, int fd);
-STATIC int pe_test_res_file(void *v, int size);
-STATIC int pe_load_res_file(struct TCCState *s1, int fd);
-STATIC void pe_add_runtime(struct TCCState *s1);
-STATIC void pe_guess_outfile(char *objfilename, int output_type);
-STATIC int pe_output_file(struct TCCState *s1, const char *filename);
-
-/* tccasm.c */
-#ifdef CONFIG_TCC_ASM
-static void asm_expr(TCCState *s1, ExprValue *pe);
-static int asm_int_expr(TCCState *s1);
-static int find_constraint(ASMOperand *operands, int nb_operands, 
-                           const char *name, const char **pp);
-
-static int tcc_assemble(TCCState *s1, int do_preprocess);
-#endif
 
 static void asm_instr(void);
 static void asm_global_instr(void);
@@ -232,27 +198,10 @@ static void asm_global_instr(void);
 
 #include "x86_64-gen.c"
 
-#ifdef CONFIG_TCC_STATIC
-
 #define RTLD_LAZY       0x001
 #define RTLD_NOW        0x002
 #define RTLD_GLOBAL     0x100
 #define RTLD_DEFAULT    NULL
-
-/* dummy function for profiling */
-STATIC void *dlopen(const char *filename, int flag)
-{
-    return NULL;
-}
-
-STATIC void dlclose(void *p)
-{
-}
-
-const char *dlerror(void)
-{
-    return "error";
-}
 
 typedef struct TCCSyms {
     char *str;
@@ -283,17 +232,6 @@ STATIC void *resolve_sym(TCCState *s1, const char *symbol, int type)
     }
     return NULL;
 }
-
-#elif !defined(_WIN32)
-
-#include <dlfcn.h>
-
-STATIC void *resolve_sym(TCCState *s1, const char *sym, int type)
-{
-    return dlsym(RTLD_DEFAULT, sym);
-}
-
-#endif
 
 /********************************************************/
 
@@ -1005,8 +943,6 @@ static void asm_global_instr(void)
 }
 #endif
 
-//#include "tccelf.c"
-
 /* copy code into memory passed in by the caller and do all relocations
    (needed before using tcc_get_symbol()).
    returns -1 on error and required size if ptr is NULL */
@@ -1047,7 +983,7 @@ TCCState *tcc_new(void)
     if (!s)
         return NULL;
     tcc_state = s;
-    s->output_type = TCC_OUTPUT_MEMORY;
+    s->output_type = TCC_OUTPUT_PREPROCESS;
     s->tcc_lib_path = CONFIG_TCCDIR;
 
     preprocess_new();
@@ -1071,15 +1007,6 @@ STATIC int tcc_add_include_path(TCCState *s1, const char *pathname)
     
     pathname1 = tcc_strdup(pathname);
     dynarray_add((void ***)&s1->include_paths, &s1->nb_include_paths, pathname1);
-    return 0;
-}
-
-STATIC int tcc_add_sysinclude_path(TCCState *s1, const char *pathname)
-{
-    char *pathname1;
-    
-    pathname1 = tcc_strdup(pathname);
-    dynarray_add((void ***)&s1->sysinclude_paths, &s1->nb_sysinclude_paths, pathname1);
     return 0;
 }
 
@@ -1128,15 +1055,6 @@ STATIC int tcc_add_file(TCCState *s, const char *filename)
         return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR);
 }
 
-STATIC int tcc_add_library_path(TCCState *s, const char *pathname)
-{
-    char *pathname1;
-    
-    pathname1 = tcc_strdup(pathname);
-    dynarray_add((void ***)&s->library_paths, &s->nb_library_paths, pathname1);
-    return 0;
-}
-
 /* find and load a dll. Return non zero if not found */
 /* XXX: add '-rpath' option support ? */
 static int tcc_add_dll(TCCState *s, const char *filename, int flags)
@@ -1148,33 +1066,6 @@ static int tcc_add_dll(TCCState *s, const char *filename, int flags)
         snprintf(buf, sizeof(buf), "%s/%s", 
                  s->library_paths[i], filename);
         if (tcc_add_file_internal(s, buf, flags) == 0)
-            return 0;
-    }
-    return -1;
-}
-
-/* the library name is the same as the argument of the '-l' option */
-STATIC int tcc_add_library(TCCState *s, const char *libraryname)
-{
-    char buf[1024];
-    int i;
-    
-    /* first we look for the dynamic library if not static linking */
-    if (!s->static_link) {
-#ifdef TCC_TARGET_PE
-        snprintf(buf, sizeof(buf), "%s.def", libraryname);
-#else
-        snprintf(buf, sizeof(buf), "lib%s.so", libraryname);
-#endif
-        if (tcc_add_dll(s, buf, 0) == 0)
-            return 0;
-    }
-
-    /* then we look for the static library */
-    for(i = 0; i < s->nb_library_paths; i++) {
-        snprintf(buf, sizeof(buf), "%s/lib%s.a", 
-                 s->library_paths[i], libraryname);
-        if (tcc_add_file_internal(s, buf, 0) == 0)
             return 0;
     }
     return -1;

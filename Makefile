@@ -9,9 +9,6 @@ CFLAGS+=-g -Wall
 CFLAGS += -Wno-pointer-sign -Wno-sign-compare -D_FORTIFY_SOURCE=0 -fno-strict-aliasing
 OPTLEVEL = -O0
 
-# XXX remove
-LIBS+=-ldl
-
 NATIVE_TARGET=-DTCC_TARGET_X86_64
 
 ifeq ($(TOP),.)
