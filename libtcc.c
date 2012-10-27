@@ -120,7 +120,7 @@ static struct TCCState *tcc_state;
 
 /* tccpp.c */
 static void next(void);
-char *get_tok_str(int v, CValue *cv);
+STATIC char *get_tok_str(int v, CValue *cv);
 
 /* tccgen.c */
 static void parse_expr_type(CType *type);
@@ -137,21 +137,21 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
                              int first, int size_only);
 static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, 
                                    int has_init, int v, int scope);
-int gv(int rc);
-void gv2(int rc1, int rc2);
-void move_reg(int r, int s);
-void save_regs(int n);
-void save_reg(int r);
-void vpop(void);
-void vswap(void);
-void vdup(void);
-int get_reg(int rc);
-int get_reg_ex(int rc,int rc2);
+STATIC int gv(int rc);
+STATIC void gv2(int rc1, int rc2);
+STATIC void move_reg(int r, int s);
+STATIC void save_regs(int n);
+STATIC void save_reg(int r);
+STATIC void vpop(void);
+STATIC void vswap(void);
+STATIC void vdup(void);
+STATIC int get_reg(int rc);
+STATIC int get_reg_ex(int rc,int rc2);
 
-void gen_op(int op);
-void force_charshort_cast(int t);
+STATIC void gen_op(int op);
+STATIC void force_charshort_cast(int t);
 static void gen_cast(CType *type);
-void vstore(void);
+STATIC void vstore(void);
 static Sym *sym_find(int v);
 static Sym *sym_push(int v, CType *type, int r, int c);
 
@@ -166,15 +166,15 @@ static int compare_types(CType *type1, CType *type2, int unqualified);
 static int is_compatible_types(CType *type1, CType *type2);
 static int is_compatible_parameter_types(CType *type1, CType *type2);
 
-int ieee_finite(double d);
-void vpushi(int v);
-void vpushll(long long v);
-void vrott(int n);
-void vnrott(int n);
-void lexpand_nr(void);
+STATIC int ieee_finite(double d);
+STATIC void vpushi(int v);
+STATIC void vpushll(long long v);
+STATIC void vrott(int n);
+STATIC void vnrott(int n);
+STATIC void lexpand_nr(void);
 static void vpush_global_sym(CType *type, int v);
-void vset(CType *type, int r, int v);
-void type_to_str(char *buf, int buf_size, 
+STATIC void vset(CType *type, int r, int v);
+STATIC void type_to_str(char *buf, int buf_size, 
                  CType *type, const char *varstr);
 static Sym *get_sym_ref(CType *type, Section *sec,
                         unsigned long offset, unsigned long size);
@@ -208,16 +208,16 @@ static int tcc_add_dll(TCCState *s, const char *filename, int flags);
 static int tcc_add_file_internal(TCCState *s, const char *filename, int flags);
 
 /* tcccoff.c */
-int tcc_output_coff(TCCState *s1, FILE *f);
+STATIC int tcc_output_coff(TCCState *s1, FILE *f);
 
 /* tccpe.c */
-void *resolve_sym(TCCState *s1, const char *sym, int type);
-int pe_load_def_file(struct TCCState *s1, int fd);
-int pe_test_res_file(void *v, int size);
-int pe_load_res_file(struct TCCState *s1, int fd);
-void pe_add_runtime(struct TCCState *s1);
-void pe_guess_outfile(char *objfilename, int output_type);
-int pe_output_file(struct TCCState *s1, const char *filename);
+STATIC void *resolve_sym(TCCState *s1, const char *sym, int type);
+STATIC int pe_load_def_file(struct TCCState *s1, int fd);
+STATIC int pe_test_res_file(void *v, int size);
+STATIC int pe_load_res_file(struct TCCState *s1, int fd);
+STATIC void pe_add_runtime(struct TCCState *s1);
+STATIC void pe_guess_outfile(char *objfilename, int output_type);
+STATIC int pe_output_file(struct TCCState *s1, const char *filename);
 
 /* tccasm.c */
 #ifdef CONFIG_TCC_ASM
@@ -245,12 +245,12 @@ static void asm_global_instr(void);
 #define RTLD_DEFAULT    NULL
 
 /* dummy function for profiling */
-void *dlopen(const char *filename, int flag)
+STATIC void *dlopen(const char *filename, int flag)
 {
     return NULL;
 }
 
-void dlclose(void *p)
+STATIC void dlclose(void *p)
 {
 }
 
@@ -277,7 +277,7 @@ static TCCSyms tcc_syms[] = {
     { NULL, NULL },
 };
 
-void *resolve_sym(TCCState *s1, const char *symbol, int type)
+STATIC void *resolve_sym(TCCState *s1, const char *symbol, int type)
 {
     TCCSyms *p;
     p = tcc_syms;
@@ -293,7 +293,7 @@ void *resolve_sym(TCCState *s1, const char *symbol, int type)
 
 #include <dlfcn.h>
 
-void *resolve_sym(TCCState *s1, const char *sym, int type)
+STATIC void *resolve_sym(TCCState *s1, const char *sym, int type)
 {
     return dlsym(RTLD_DEFAULT, sym);
 }
@@ -305,14 +305,14 @@ void *resolve_sym(TCCState *s1, const char *sym, int type)
 /* we use our own 'finite' function to avoid potential problems with
    non standard math libs */
 /* XXX: endianness dependent */
-int ieee_finite(double d)
+STATIC int ieee_finite(double d)
 {
     int *p = (int *)&d;
     return ((unsigned)((p[1] | 0x800fffff) + 1)) >> 31;
 }
 
 /* copy a string and truncate it. */
-char *pstrcpy(char *buf, int buf_size, const char *s)
+STATIC char *pstrcpy(char *buf, int buf_size, const char *s)
 {
     char *q, *q_end;
     int c;
@@ -332,7 +332,7 @@ char *pstrcpy(char *buf, int buf_size, const char *s)
 }
 
 /* strcat and truncate. */
-char *pstrcat(char *buf, int buf_size, const char *s)
+STATIC char *pstrcat(char *buf, int buf_size, const char *s)
 {
     int len;
     len = strlen(buf);
@@ -342,7 +342,7 @@ char *pstrcat(char *buf, int buf_size, const char *s)
 }
 
 /* extract the basename of a file */
-char *tcc_basename(const char *name)
+STATIC char *tcc_basename(const char *name)
 {
     char *p = strchr(name, 0);
     while (p > name && !IS_PATHSEP(p[-1]))
@@ -350,14 +350,14 @@ char *tcc_basename(const char *name)
     return p;
 }
 
-char *tcc_fileextension (const char *name)
+STATIC char *tcc_fileextension (const char *name)
 {
     char *b = tcc_basename(name);
     char *e = strrchr(b, '.');
     return e ? e : strchr(b, 0);
 }
 
-void set_pages_executable(void *ptr, unsigned long length)
+STATIC void set_pages_executable(void *ptr, unsigned long length)
 {
     unsigned long start, end;
     start = (unsigned long)ptr & ~(PAGESIZE - 1);
@@ -373,7 +373,7 @@ int mem_max_size;
 unsigned malloc_usable_size(void*);
 #endif
 
-void tcc_free(void *ptr)
+STATIC void tcc_free(void *ptr)
 {
 #ifdef MEM_DEBUG
     mem_cur_size -= malloc_usable_size(ptr);
@@ -381,7 +381,7 @@ void tcc_free(void *ptr)
     free(ptr);
 }
 
-void *tcc_malloc(unsigned long size)
+STATIC void *tcc_malloc(unsigned long size)
 {
     void *ptr;
     ptr = malloc(size);
@@ -395,7 +395,7 @@ void *tcc_malloc(unsigned long size)
     return ptr;
 }
 
-void *tcc_mallocz(unsigned long size)
+STATIC void *tcc_mallocz(unsigned long size)
 {
     void *ptr;
     ptr = tcc_malloc(size);
@@ -403,7 +403,7 @@ void *tcc_mallocz(unsigned long size)
     return ptr;
 }
 
-void *tcc_realloc(void *ptr, unsigned long size)
+STATIC void *tcc_realloc(void *ptr, unsigned long size)
 {
     void *ptr1;
 #ifdef MEM_DEBUG
@@ -419,7 +419,7 @@ void *tcc_realloc(void *ptr, unsigned long size)
     return ptr1;
 }
 
-char *tcc_strdup(const char *str)
+STATIC char *tcc_strdup(const char *str)
 {
     char *ptr;
     ptr = tcc_malloc(strlen(str) + 1);
@@ -431,7 +431,7 @@ char *tcc_strdup(const char *str)
 #define malloc(s) use_tcc_malloc(s)
 #define realloc(p, s) use_tcc_realloc(p, s)
 
-void dynarray_add(void ***ptab, int *nb_ptr, void *data)
+STATIC void dynarray_add(void ***ptab, int *nb_ptr, void *data)
 {
     int nb, nb_alloc;
     void **pp;
@@ -453,7 +453,7 @@ void dynarray_add(void ***ptab, int *nb_ptr, void *data)
     *nb_ptr = nb;
 }
 
-void dynarray_reset(void *pp, int *n)
+STATIC void dynarray_reset(void *pp, int *n)
 {
     void **p;
     for (p = *(void***)pp; *n; ++p, --*n)
@@ -735,7 +735,7 @@ static void strcat_printf(char *buf, int buf_size, const char *fmt, ...)
     va_end(ap);
 }
 
-void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
+STATIC void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
 {
     char buf[2048];
     BufferedFile **f;
@@ -770,7 +770,7 @@ void error1(TCCState *s1, int is_warning, const char *fmt, va_list ap)
         s1->nb_errors++;
 }
 
-void tcc_set_error_func(TCCState *s, void *error_opaque,
+STATIC void tcc_set_error_func(TCCState *s, void *error_opaque,
                         void (*error_func)(void *opaque, const char *msg))
 {
     s->error_opaque = error_opaque;
@@ -778,7 +778,7 @@ void tcc_set_error_func(TCCState *s, void *error_opaque,
 }
 
 /* error without aborting current compilation */
-void error_noabort(const char *fmt, ...)
+STATIC void error_noabort(const char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
@@ -788,7 +788,7 @@ void error_noabort(const char *fmt, ...)
     va_end(ap);
 }
 
-void error(const char *fmt, ...)
+STATIC void error(const char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
@@ -805,12 +805,12 @@ void error(const char *fmt, ...)
     }
 }
 
-void expect(const char *msg)
+STATIC void expect(const char *msg)
 {
     error("%s expected", msg);
 }
 
-void warning(const char *fmt, ...)
+STATIC void warning(const char *fmt, ...)
 {
     TCCState *s1 = tcc_state;
     va_list ap;
@@ -823,7 +823,7 @@ void warning(const char *fmt, ...)
     va_end(ap);
 }
 
-void skip(int c)
+STATIC void skip(int c)
 {
     if (tok != c)
         error("'%c' expected", c);
@@ -1072,7 +1072,7 @@ BufferedFile *tcc_open(TCCState *s1, const char *filename)
     return bf;
 }
 
-void tcc_close(BufferedFile *bf)
+STATIC void tcc_close(BufferedFile *bf)
 {
     total_lines += bf->line_num;
     close(bf->fd);
@@ -1186,7 +1186,7 @@ static int tcc_compile(TCCState *s1)
     return s1->nb_errors != 0 ? -1 : 0;
 }
 
-int tcc_compile_string(TCCState *s, const char *str)
+STATIC int tcc_compile_string(TCCState *s, const char *str)
 {
     BufferedFile bf1, *bf = &bf1;
     int ret, len;
@@ -1215,7 +1215,7 @@ int tcc_compile_string(TCCState *s, const char *str)
 }
 
 /* define a preprocessor symbol. A value can also be provided with the '=' operator */
-void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
+STATIC void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
 {
     BufferedFile bf1, *bf = &bf1;
 
@@ -1245,7 +1245,7 @@ void tcc_define_symbol(TCCState *s1, const char *sym, const char *value)
 }
 
 /* undefine a preprocessor symbol */
-void tcc_undefine_symbol(TCCState *s1, const char *sym)
+STATIC void tcc_undefine_symbol(TCCState *s1, const char *sym)
 {
     TokenSym *ts;
     Sym *s;
@@ -1482,7 +1482,7 @@ static int rt_get_caller_pc(unsigned long *paddr,
 #endif
 
 /* emit a run time error at position 'pc' */
-void rt_error(ucontext_t *uc, const char *fmt, ...)
+STATIC void rt_error(ucontext_t *uc, const char *fmt, ...)
 {
     va_list ap;
     unsigned long pc;
@@ -1547,7 +1547,7 @@ static void sig_error(int signum, siginfo_t *siginf, void *puc)
 /* copy code into memory passed in by the caller and do all relocations
    (needed before using tcc_get_symbol()).
    returns -1 on error and required size if ptr is NULL */
-int tcc_relocate(TCCState *s1, void *ptr)
+STATIC int tcc_relocate(TCCState *s1, void *ptr)
 {
     Section *s;
     unsigned long offset, length, mem;
@@ -1624,7 +1624,7 @@ int tcc_relocate(TCCState *s1, void *ptr)
 }
 
 /* launch the compiled program with the given arguments */
-int tcc_run(TCCState *s1, int argc, char **argv)
+STATIC int tcc_run(TCCState *s1, int argc, char **argv)
 {
     int (*prog_main)(int, char **);
     void *ptr;
@@ -1673,7 +1673,7 @@ int tcc_run(TCCState *s1, int argc, char **argv)
     return ret;
 }
 
-void tcc_memstats(void)
+STATIC void tcc_memstats(void)
 {
 #ifdef MEM_DEBUG
     printf("memory in use: %d\n", mem_cur_size);
@@ -1807,7 +1807,7 @@ TCCState *tcc_new(void)
     return s;
 }
 
-void tcc_delete(TCCState *s1)
+STATIC void tcc_delete(TCCState *s1)
 {
     int i;
 
@@ -1843,7 +1843,7 @@ void tcc_delete(TCCState *s1)
     tcc_free(s1);
 }
 
-int tcc_add_include_path(TCCState *s1, const char *pathname)
+STATIC int tcc_add_include_path(TCCState *s1, const char *pathname)
 {
     char *pathname1;
     
@@ -1852,7 +1852,7 @@ int tcc_add_include_path(TCCState *s1, const char *pathname)
     return 0;
 }
 
-int tcc_add_sysinclude_path(TCCState *s1, const char *pathname)
+STATIC int tcc_add_sysinclude_path(TCCState *s1, const char *pathname)
 {
     char *pathname1;
     
@@ -1977,7 +1977,7 @@ static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
     goto the_end;
 }
 
-int tcc_add_file(TCCState *s, const char *filename)
+STATIC int tcc_add_file(TCCState *s, const char *filename)
 {
     if (s->output_type == TCC_OUTPUT_PREPROCESS)
         return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR | AFF_PREPROCESS);
@@ -1985,7 +1985,7 @@ int tcc_add_file(TCCState *s, const char *filename)
         return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR);
 }
 
-int tcc_add_library_path(TCCState *s, const char *pathname)
+STATIC int tcc_add_library_path(TCCState *s, const char *pathname)
 {
     char *pathname1;
     
@@ -2011,7 +2011,7 @@ static int tcc_add_dll(TCCState *s, const char *filename, int flags)
 }
 
 /* the library name is the same as the argument of the '-l' option */
-int tcc_add_library(TCCState *s, const char *libraryname)
+STATIC int tcc_add_library(TCCState *s, const char *libraryname)
 {
     char buf[1024];
     int i;
@@ -2037,7 +2037,7 @@ int tcc_add_library(TCCState *s, const char *libraryname)
     return -1;
 }
 
-int tcc_add_symbol(TCCState *s, const char *name, void *val)
+STATIC int tcc_add_symbol(TCCState *s, const char *name, void *val)
 {
     add_elf_sym(symtab_section, (unsigned long)val, 0, 
                 ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
@@ -2045,7 +2045,7 @@ int tcc_add_symbol(TCCState *s, const char *name, void *val)
     return 0;
 }
 
-int tcc_set_output_type(TCCState *s, int output_type)
+STATIC int tcc_set_output_type(TCCState *s, int output_type)
 {
     char buf[1024];
 
@@ -2156,7 +2156,7 @@ static int set_flag(TCCState *s, const FlagDef *flags, int nb_flags,
 
 
 /* set/reset a warning */
-int tcc_set_warning(TCCState *s, const char *warning_name, int value)
+STATIC int tcc_set_warning(TCCState *s, const char *warning_name, int value)
 {
     int i;
     const FlagDef *p;
@@ -2181,19 +2181,19 @@ static const FlagDef flag_defs[] = {
 };
 
 /* set/reset a flag */
-int tcc_set_flag(TCCState *s, const char *flag_name, int value)
+STATIC int tcc_set_flag(TCCState *s, const char *flag_name, int value)
 {
     return set_flag(s, flag_defs, countof(flag_defs),
                     flag_name, value);
 }
 
 /* set CONFIG_TCCDIR at runtime */
-void tcc_set_lib_path(TCCState *s, const char *path)
+STATIC void tcc_set_lib_path(TCCState *s, const char *path)
 {
     s->tcc_lib_path = tcc_strdup(path);
 }
 
-void tcc_print_stats(TCCState *s, int64_t total_time)
+STATIC void tcc_print_stats(TCCState *s, int64_t total_time)
 {
     double tt;
     tt = (double)total_time / 1000000.0;

@@ -697,26 +697,26 @@ extern long double strtold (const char *__nptr, char **__endptr);
 #define IS_ABSPATH(p) IS_PATHSEP(p[0])
 #define PATHCMP strcmp
 
-void error(const char *fmt, ...);
-void error_noabort(const char *fmt, ...);
-void warning(const char *fmt, ...);
+STATIC void error(const char *fmt, ...);
+STATIC void error_noabort(const char *fmt, ...);
+STATIC void warning(const char *fmt, ...);
 
 void tcc_set_lib_path_w32(TCCState *s);
-int tcc_set_flag(TCCState *s, const char *flag_name, int value);
-void tcc_print_stats(TCCState *s, int64_t total_time);
+STATIC int tcc_set_flag(TCCState *s, const char *flag_name, int value);
+STATIC void tcc_print_stats(TCCState *s, int64_t total_time);
 
-void tcc_free(void *ptr);
-void *tcc_malloc(unsigned long size);
-void *tcc_mallocz(unsigned long size);
-void *tcc_realloc(void *ptr, unsigned long size);
-char *tcc_strdup(const char *str);
+STATIC void tcc_free(void *ptr);
+STATIC void *tcc_malloc(unsigned long size);
+STATIC void *tcc_mallocz(unsigned long size);
+STATIC void *tcc_realloc(void *ptr, unsigned long size);
+STATIC char *tcc_strdup(const char *str);
 
-char *tcc_basename(const char *name);
-char *tcc_fileextension (const char *name);
-char *pstrcpy(char *buf, int buf_size, const char *s);
-char *pstrcat(char *buf, int buf_size, const char *s);
-void dynarray_add(void ***ptab, int *nb_ptr, void *data);
-void dynarray_reset(void *pp, int *n);
+STATIC char *tcc_basename(const char *name);
+STATIC char *tcc_fileextension (const char *name);
+STATIC char *pstrcpy(char *buf, int buf_size, const char *s);
+STATIC char *pstrcat(char *buf, int buf_size, const char *s);
+STATIC void dynarray_add(void ***ptab, int *nb_ptr, void *data);
+STATIC void dynarray_reset(void *pp, int *n);
 
 #ifdef CONFIG_TCC_BACKTRACE
 extern int num_callers;
