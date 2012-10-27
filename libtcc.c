@@ -235,21 +235,7 @@ static void asm_global_instr(void);
 /********************************************************/
 /* global variables */
 
-#ifdef TCC_TARGET_I386
-#include "i386-gen.c"
-#endif
-
-#ifdef TCC_TARGET_ARM
-#include "arm-gen.c"
-#endif
-
-#ifdef TCC_TARGET_C67
-#include "c67-gen.c"
-#endif
-
-#ifdef TCC_TARGET_X86_64
 #include "x86_64-gen.c"
-#endif
 
 #ifdef CONFIG_TCC_STATIC
 
@@ -371,44 +357,13 @@ char *tcc_fileextension (const char *name)
     return e ? e : strchr(b, 0);
 }
 
-#ifdef _WIN32
-char *normalize_slashes(char *path)
-{
-    char *p;
-    for (p = path; *p; ++p)
-        if (*p == '\\')
-            *p = '/';
-    return path;
-}
-
-void tcc_set_lib_path_w32(TCCState *s)
-{
-    /* on win32, we suppose the lib and includes are at the location
-       of 'tcc.exe' */
-    char path[1024], *p;
-    GetModuleFileNameA(NULL, path, sizeof path);
-    p = tcc_basename(normalize_slashes(strlwr(path)));
-    if (p - 5 > path && 0 == strncmp(p - 5, "/bin/", 5))
-        p -= 5;
-    else if (p > path)
-        p--;
-    *p = 0;
-    tcc_set_lib_path(s, path);
-}
-#endif
-
 void set_pages_executable(void *ptr, unsigned long length)
 {
-#ifdef _WIN32
-    unsigned long old_protect;
-    VirtualProtect(ptr, length, PAGE_EXECUTE_READWRITE, &old_protect);
-#else
     unsigned long start, end;
     start = (unsigned long)ptr & ~(PAGESIZE - 1);
     end = (unsigned long)ptr + length;
     end = (end + PAGESIZE - 1) & ~(PAGESIZE - 1);
     mprotect((void *)start, end - start, PROT_READ | PROT_WRITE | PROT_EXEC);
-#endif            
 }
 
 /* memory management */
@@ -1110,9 +1065,6 @@ BufferedFile *tcc_open(TCCState *s1, const char *filename)
     bf->buf_end = bf->buffer;
     bf->buffer[0] = CH_EOB; /* put eob symbol */
     pstrcpy(bf->filename, sizeof(bf->filename), filename);
-#ifdef _WIN32
-    normalize_slashes(bf->filename);
-#endif
     bf->line_num = 1;
     bf->ifndef_macro = 0;
     bf->ifdef_stack_ptr = s1->ifdef_stack_ptr;
@@ -1154,9 +1106,6 @@ static int tcc_compile(TCCState *s1)
                                   ELFW(ST_INFO)(STB_LOCAL, STT_SECTION), 0, 
                                   text_section->sh_num, NULL);
         getcwd(buf, sizeof(buf));
-#ifdef _WIN32
-        normalize_slashes(buf);
-#endif
         pstrcat(buf, sizeof(buf), "/");
         put_stabs_r(buf, N_SO, 0, 0, 
                     text_section->data_offset, text_section, section_sym);

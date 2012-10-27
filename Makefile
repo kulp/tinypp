@@ -7,7 +7,9 @@ include $(TOP)/config.mak
 
 CFLAGS+=-g -Wall
 CFLAGS += -Wno-pointer-sign -Wno-sign-compare -D_FORTIFY_SOURCE=0 -fno-strict-aliasing
+OPTLEVEL = -O0
 
+# XXX remove
 LIBS+=-ldl
 
 NATIVE_TARGET=-DTCC_TARGET_X86_64
@@ -48,7 +50,7 @@ LIBTCC1_CC=$(CC)
 VPATH+=lib
 
 %.o: %.c
-	$(LIBTCC1_CC) -o $@ -c $< -O2 -Wall
+	$(LIBTCC1_CC) -o $@ -c $< $(OPTLEVEL) -Wall
 
 %.o: %.S
 	$(LIBTCC1_CC) -o $@ -c $<
@@ -57,7 +59,7 @@ libtcc1.a: $(LIBTCC1_OBJS)
 	$(AR) rcs $@ $^
 
 bcheck.o: bcheck.c
-	$(CC) -o $@ -c $< -O2 -Wall
+	$(CC) -o $@ -c $< $(OPTLEVEL) -Wall
 
 # clean
 clean: local_clean
