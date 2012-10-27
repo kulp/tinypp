@@ -2,19 +2,14 @@
 # Tiny C Compiler Makefile
 #
 
-TOP ?= .
-include $(TOP)/config.mak
-
 CFLAGS += -g -Wall
 CFLAGS += -Wno-pointer-sign -Wno-sign-compare -fno-strict-aliasing
 OPTLEVEL = -O0
 
-ifeq ($(TOP),.)
-
 PROGS=tcc$(EXESUF)
 
 CORE_FILES = tcc.c libtcc.c tccpp.c tccgen.c \
-    tcc.h config.h libtcc.h tcctok.h
+    tcc.h libtcc.h tcctok.h
 
 all: $(PROGS) $(LIBTCC1) $(BCHECK_O)
 
@@ -39,4 +34,3 @@ local_clean:
 distclean: clean
 	rm -vf config.h config.mak config.texi
 
-endif # ifeq ($(TOP),.)

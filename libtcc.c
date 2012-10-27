@@ -669,7 +669,7 @@ static TCCState *tcc_new(void)
         return NULL;
     tcc_state = s;
     s->output_type = TCC_OUTPUT_PREPROCESS;
-    s->tcc_lib_path = CONFIG_TCCDIR;
+    //s->tcc_lib_path = CONFIG_TCCDIR;
 
     preprocess_new();
 
