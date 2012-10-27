@@ -57,13 +57,10 @@ static Section *last_text_section; /* to handle .previous asm directive */
 #endif
 
 /* expression generation modifiers */
-static int global_expr;  /* true if compound literals must be allocated
-                            globally (used during initializers parsing */
 static int tok_ident;
 static TokenSym **table_ident;
 static TokenSym *hash_ident[TOK_HASH_SIZE];
 static char token_buf[STRING_MAX_SIZE + 1];
-static Sym *global_stack, *local_stack;
 static Sym *define_stack;
 /* symbol allocator */
 #define SYM_POOL_NB (8192 / sizeof(Sym))
@@ -73,7 +70,7 @@ static int nb_sym_pools;
 
 static SValue vstack[VSTACK_SIZE], *vtop;
 /* some predefined types */
-static CType char_pointer_type, func_old_type, int_type;
+static CType int_type;
 
 /* use GNU C extensions */
 static int gnu_ext = 1;
@@ -95,22 +92,14 @@ STATIC char *get_tok_str(int v, CValue *cv);
 static int expr_const(void);
 static void expr_eq(void);
 static void gexpr(void);
-static void decl_initializer(CType *type, Section *sec, unsigned long c, 
-                             int first, int size_only);
 STATIC void vpop(void);
 STATIC void vswap(void);
 STATIC void vdup(void);
 
 STATIC void vstore(void);
 static Sym *sym_find(int v);
-static Sym *sym_push(int v, CType *type, int r, int c);
 
 STATIC void vpushi(int v);
-STATIC void vset(CType *type, int r, int v);
-static Sym *external_global_sym(int v, CType *type, int r);
-
-/* section generation */
-static void section_realloc(Section *sec, unsigned long new_size);
 
 #define AFF_PRINT_ERROR     0x0001 /* print error if file not found */
 #define AFF_REFERENCED_DLL  0x0002 /* load a referenced dll from another dll */
@@ -314,60 +303,6 @@ static inline void sym_free(Sym *sym)
 {
     sym->next = sym_free_first;
     sym_free_first = sym;
-}
-
-Section *new_section(TCCState *s1, const char *name, int sh_type, int sh_flags)
-{
-    Section *sec;
-
-    sec = tcc_mallocz(sizeof(Section) + strlen(name));
-    strcpy(sec->name, name);
-    sec->sh_type = sh_type;
-    sec->sh_flags = sh_flags;
-    switch(sh_type) {
-    case SHT_HASH:
-    case SHT_REL:
-    case SHT_RELA:
-    case SHT_DYNSYM:
-    case SHT_SYMTAB:
-    case SHT_DYNAMIC:
-        sec->sh_addralign = 4;
-        break;
-    case SHT_STRTAB:
-        sec->sh_addralign = 1;
-        break;
-    default:
-        sec->sh_addralign = 32; /* default conservative alignment */
-        break;
-    }
-
-    if (sh_flags & SHF_PRIVATE) {
-        dynarray_add((void ***)&s1->priv_sections, &s1->nb_priv_sections, sec);
-    } else {
-        sec->sh_num = s1->nb_sections;
-        dynarray_add((void ***)&s1->sections, &s1->nb_sections, sec);
-    }
-
-    return sec;
-}
-
-/* realloc section and set its content to zero */
-static void section_realloc(Section *sec, unsigned long new_size)
-{
-    unsigned long size;
-    unsigned char *data;
-    
-    size = sec->data_allocated;
-    if (size == 0)
-        size = 1;
-    while (size < new_size)
-        size = size * 2;
-    data = tcc_realloc(sec->data, size);
-    if (!data)
-        error("memory full");
-    memset(data + sec->data_allocated, 0, size - sec->data_allocated);
-    sec->data = data;
-    sec->data_allocated = size;
 }
 
 static inline int isid(int c)
@@ -638,55 +573,9 @@ static inline Sym *sym_find(int v)
     return table_ident[v]->sym_identifier;
 }
 
-/* push a given symbol on the symbol stack */
-static Sym *sym_push(int v, CType *type, int r, int c)
-{
-    Sym *s, **ps;
-    TokenSym *ts;
-
-    if (local_stack)
-        ps = &local_stack;
-    else
-        ps = &global_stack;
-    s = sym_push2(ps, v, type->t, c);
-    s->type.ref = type->ref;
-    s->r = r;
-    /* don't record fields or anonymous symbols */
-    /* XXX: simplify */
-    if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
-        /* record symbol in token array */
-        ts = table_ident[(v & ~SYM_STRUCT) - TOK_IDENT];
-        if (v & SYM_STRUCT)
-            ps = &ts->sym_struct;
-        else
-            ps = &ts->sym_identifier;
-        s->prev_tok = *ps;
-        *ps = s;
-    }
-    return s;
-}
-
-/* push a global identifier */
-static Sym *global_identifier_push(int v, int t, int c)
-{
-    Sym *s, **ps;
-    s = sym_push2(&global_stack, v, t, c);
-    /* don't record anonymous symbol */
-    if (v < SYM_FIRST_ANOM) {
-        ps = &table_ident[v - TOK_IDENT]->sym_identifier;
-        /* modify the top most local identifier, so that
-           sym_identifier will point to 's' when popped */
-        while (*ps != NULL)
-            ps = &(*ps)->prev_tok;
-        s->prev_tok = NULL;
-        *ps = s;
-    }
-    return s;
-}
-
 /* I/O layer */
 
-BufferedFile *tcc_open(TCCState *s1, const char *filename)
+STATIC BufferedFile *tcc_open(TCCState *s1, const char *filename)
 {
     int fd;
     BufferedFile *bf;
@@ -792,7 +681,7 @@ static void tcc_cleanup(void)
     macro_ptr = NULL;
 }
 
-TCCState *tcc_new(void)
+STATIC TCCState *tcc_new(void)
 {
     TCCState *s;
 

@@ -2806,7 +2806,7 @@ static void preprocess_init(TCCState *s1)
     s1->pack_stack_ptr = s1->pack_stack;
 }
 
-void preprocess_new()
+STATIC void preprocess_new()
 {
     int i, c;
     const char *p, *r;
