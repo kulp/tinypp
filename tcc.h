@@ -702,8 +702,6 @@ STATIC void error_noabort(const char *fmt, ...);
 STATIC void warning(const char *fmt, ...);
 
 void tcc_set_lib_path_w32(TCCState *s);
-STATIC int tcc_set_flag(TCCState *s, const char *flag_name, int value);
-STATIC void tcc_print_stats(TCCState *s, int64_t total_time);
 
 STATIC void tcc_free(void *ptr);
 STATIC void *tcc_malloc(unsigned long size);

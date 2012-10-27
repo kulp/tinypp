@@ -52,27 +52,21 @@ static int parse_flags;
 #define PARSE_FLAG_ASM_COMMENTS 0x0008 /* '#' can be used for line comment */
 #define PARSE_FLAG_SPACES     0x0010 /* next() returns space tokens (for -E) */
  
-static Section *text_section, *data_section, *bss_section; /* predefined sections */
+static Section *data_section, *bss_section; /* predefined sections */
 static Section *cur_text_section; /* current section where function code is
                               generated */
 #ifdef CONFIG_TCC_ASM
 static Section *last_text_section; /* to handle .previous asm directive */
 #endif
-/* bound check related sections */
-static Section *bounds_section; /* contains global data bound description */
-static Section *lbounds_section; /* contains local data bound description */
 /* symbol sections */
-static Section *symtab_section, *strtab_section;
-
-/* debug sections */
-static Section *stab_section, *stabstr_section;
+static Section *symtab_section;
 
 /* loc : local variable index
    ind : output code index
    rsym: return symbol
    anon_sym: anonymous symbol index
 */
-static int rsym, anon_sym, ind, loc;
+static int anon_sym, ind, loc;
 /* expression generation modifiers */
 static int const_wanted; /* true if constant wanted */
 static int nocode_wanted; /* true if no code generation wanted for an expression */
@@ -81,15 +75,13 @@ static int global_expr;  /* true if compound literals must be allocated
 static CType func_vt; /* current function return type (used by return
                          instruction) */
 static int func_vc;
-static int last_line_num, last_ind, func_ind; /* debug last line number and pc */
 static int tok_ident;
 static TokenSym **table_ident;
 static TokenSym *hash_ident[TOK_HASH_SIZE];
 static char token_buf[STRING_MAX_SIZE + 1];
-static char *funcname;
 static Sym *global_stack, *local_stack;
 static Sym *define_stack;
-static Sym *global_label_stack, *local_label_stack;
+static Sym *global_label_stack;
 /* symbol allocator */
 #define SYM_POOL_NB (8192 / sizeof(Sym))
 static Sym *sym_free_first;
@@ -106,12 +98,6 @@ static int gnu_ext = 1;
 /* use Tiny C extensions */
 static int tcc_ext = 1;
 
-/* max number of callers shown if error */
-#ifdef CONFIG_TCC_BACKTRACE
-int num_callers = 6;
-const char **rt_bound_error_msg;
-#endif
-
 /* XXX: get rid of this ASAP */
 static struct TCCState *tcc_state;
 
@@ -126,13 +112,9 @@ STATIC char *get_tok_str(int v, CValue *cv);
 static void parse_expr_type(CType *type);
 static void expr_type(CType *type);
 static void unary_type(CType *type);
-static void block(int *bsym, int *csym, int *case_sym, int *def_sym, 
-                  int case_reg, int is_expr);
 static int expr_const(void);
 static void expr_eq(void);
 static void gexpr(void);
-static void gen_inline_functions(void);
-static void decl(int l);
 static void decl_initializer(CType *type, Section *sec, unsigned long c, 
                              int first, int size_only);
 static void decl_initializer_alloc(CType *type, AttributeDef *ad, int r, 
@@ -146,7 +128,6 @@ STATIC void vpop(void);
 STATIC void vswap(void);
 STATIC void vdup(void);
 STATIC int get_reg(int rc);
-STATIC int get_reg_ex(int rc,int rc2);
 
 STATIC void gen_op(int op);
 STATIC void force_charshort_cast(int t);
@@ -166,32 +147,23 @@ static int compare_types(CType *type1, CType *type2, int unqualified);
 static int is_compatible_types(CType *type1, CType *type2);
 static int is_compatible_parameter_types(CType *type1, CType *type2);
 
-STATIC int ieee_finite(double d);
 STATIC void vpushi(int v);
 STATIC void vpushll(long long v);
 STATIC void vrott(int n);
-STATIC void vnrott(int n);
-STATIC void lexpand_nr(void);
 static void vpush_global_sym(CType *type, int v);
 STATIC void vset(CType *type, int r, int v);
 STATIC void type_to_str(char *buf, int buf_size, 
                  CType *type, const char *varstr);
-static Sym *get_sym_ref(CType *type, Section *sec,
-                        unsigned long offset, unsigned long size);
 static Sym *external_global_sym(int v, CType *type, int r);
 
 /* section generation */
 static void section_realloc(Section *sec, unsigned long new_size);
 static void *section_ptr_add(Section *sec, unsigned long size);
-static int tcc_add_dll(TCCState *s, const char *filename, int flags);
 
 #define AFF_PRINT_ERROR     0x0001 /* print error if file not found */
 #define AFF_REFERENCED_DLL  0x0002 /* load a referenced dll from another dll */
 #define AFF_PREPROCESS      0x0004 /* preprocess file */
 static int tcc_add_file_internal(TCCState *s, const char *filename, int flags);
-
-static void asm_instr(void);
-static void asm_global_instr(void);
 
 /********************************************************/
 /* global variables */
@@ -209,29 +181,6 @@ typedef struct TCCSyms {
 } TCCSyms;
 
 #define TCCSYM(a) { #a, &a, },
-
-/* add the symbol you want here if no dynamic linking is done */
-static TCCSyms tcc_syms[] = {
-#if !defined(CONFIG_TCCBOOT)
-    TCCSYM(printf)
-    TCCSYM(fprintf)
-    TCCSYM(fopen)
-    TCCSYM(fclose)
-#endif
-    { NULL, NULL },
-};
-
-STATIC void *resolve_sym(TCCState *s1, const char *symbol, int type)
-{
-    TCCSyms *p;
-    p = tcc_syms;
-    while (p->str != NULL) {
-        if (!strcmp(p->str, symbol))
-            return p->ptr;
-        p++;
-    }
-    return NULL;
-}
 
 /********************************************************/
 
@@ -820,33 +769,6 @@ static Sym *global_identifier_push(int v, int t, int c)
     return s;
 }
 
-/* pop symbols until top reaches 'b' */
-static void sym_pop(Sym **ptop, Sym *b)
-{
-    Sym *s, *ss, **ps;
-    TokenSym *ts;
-    int v;
-
-    s = *ptop;
-    while(s != b) {
-        ss = s->prev;
-        v = s->v;
-        /* remove symbol in token array */
-        /* XXX: simplify */
-        if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
-            ts = table_ident[(v & ~SYM_STRUCT) - TOK_IDENT];
-            if (v & SYM_STRUCT)
-                ps = &ts->sym_struct;
-            else
-                ps = &ts->sym_identifier;
-            *ps = s->prev_tok;
-        }
-        sym_free(s);
-        s = ss;
-    }
-    *ptop = b;
-}
-
 /* I/O layer */
 
 BufferedFile *tcc_open(TCCState *s1, const char *filename)
@@ -858,9 +780,6 @@ BufferedFile *tcc_open(TCCState *s1, const char *filename)
         fd = 0, filename = "stdin";
     else
         fd = open(filename, O_RDONLY | O_BINARY);
-    if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
-        printf("%s %*s%s\n", fd < 0 ? "nf":"->",
-               (s1->include_stack_ptr - s1->include_stack), "", filename);
     if (fd < 0)
         return NULL;
     bf = tcc_malloc(sizeof(BufferedFile));
@@ -927,21 +846,6 @@ STATIC void tcc_undefine_symbol(TCCState *s1, const char *sym)
     if (s)
         define_undef(s);
 }
-
-#ifdef CONFIG_TCC_ASM
-
-#include "tccasm.c"
-
-#else
-static void asm_instr(void)
-{
-    error("inline asm() not supported");
-}
-static void asm_global_instr(void)
-{
-    error("inline asm() not supported");
-}
-#endif
 
 /* copy code into memory passed in by the caller and do all relocations
    (needed before using tcc_get_symbol()).
@@ -1053,22 +957,6 @@ STATIC int tcc_add_file(TCCState *s, const char *filename)
         return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR | AFF_PREPROCESS);
     else
         return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR);
-}
-
-/* find and load a dll. Return non zero if not found */
-/* XXX: add '-rpath' option support ? */
-static int tcc_add_dll(TCCState *s, const char *filename, int flags)
-{
-    char buf[1024];
-    int i;
-
-    for(i = 0; i < s->nb_library_paths; i++) {
-        snprintf(buf, sizeof(buf), "%s/%s", 
-                 s->library_paths[i], filename);
-        if (tcc_add_file_internal(s, buf, flags) == 0)
-            return 0;
-    }
-    return -1;
 }
 
 STATIC int tcc_set_output_type(TCCState *s, int output_type)
