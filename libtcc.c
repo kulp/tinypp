@@ -105,18 +105,8 @@ STATIC void vstore(void);
 static Sym *sym_find(int v);
 static Sym *sym_push(int v, CType *type, int r, int c);
 
-/* type handling */
-static int type_size(CType *type, int *a);
-static inline CType *pointed_type(CType *type);
-static int lvalue_type(int t);
-static int compare_types(CType *type1, CType *type2, int unqualified);
-static int is_compatible_types(CType *type1, CType *type2);
-static int is_compatible_parameter_types(CType *type1, CType *type2);
-
 STATIC void vpushi(int v);
 STATIC void vset(CType *type, int r, int v);
-STATIC void type_to_str(char *buf, int buf_size, 
-                 CType *type, const char *varstr);
 static Sym *external_global_sym(int v, CType *type, int r);
 
 /* section generation */
@@ -130,7 +120,8 @@ static int tcc_add_file_internal(TCCState *s, const char *filename, int flags);
 /********************************************************/
 /* global variables */
 
-#include "x86_64-defs.c"
+// XXX
+#define LDOUBLE_SIZE  16
 
 #define RTLD_LAZY       0x001
 #define RTLD_NOW        0x002

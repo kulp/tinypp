@@ -9,6 +9,7 @@ CFLAGS+=-g -Wall
 CFLAGS += -Wno-pointer-sign -Wno-sign-compare -D_FORTIFY_SOURCE=0 -fno-strict-aliasing
 OPTLEVEL = -O0
 
+# XXX
 NATIVE_TARGET=-DTCC_TARGET_X86_64
 
 ifeq ($(TOP),.)
@@ -17,14 +18,11 @@ PROGS=tcc$(EXESUF)
 
 CORE_FILES = tcc.c libtcc.c tccpp.c tccgen.c \
     tcc.h config.h libtcc.h tcctok.h
-X86_64_FILES = $(CORE_FILES) x86_64-defs.c
-
-NATIVE_FILES=$(X86_64_FILES)
 
 all: $(PROGS) $(LIBTCC1) $(BCHECK_O)
 
 # Host Tiny C Compiler
-tcc$(EXESUF): $(NATIVE_FILES)
+tcc$(EXESUF): $(CORE_FILES)
 	$(CC) -o $@ $< $(NATIVE_TARGET) $(CFLAGS) $(LIBS)
 
 %.o: %.c

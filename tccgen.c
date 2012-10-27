@@ -218,73 +218,8 @@ static void gen_cast(CType *type)
             vtop->r = VT_CONST;
             vtop->c.i = 1;
         }
-    } else if ((dbt & VT_BTYPE) == VT_PTR && !(vtop->r & VT_LVAL)) {
-        /* if we are casting between pointer types,
-           we must update the VT_LVAL_xxx size */
-        vtop->r = (vtop->r & ~VT_LVAL_TYPE)
-                  | (lvalue_type(type->ref->type.t) & VT_LVAL_TYPE);
     }
     vtop->type = *type;
-}
-
-/* return type size. Put alignment at 'a' */
-static int type_size(CType *type, int *a)
-{
-    Sym *s;
-    int bt;
-
-    bt = type->t & VT_BTYPE;
-    if (bt == VT_STRUCT) {
-        /* struct/union */
-        s = type->ref;
-        *a = s->r;
-        return s->c;
-    } else if (bt == VT_PTR) {
-        if (type->t & VT_ARRAY) {
-            int ts;
-
-            s = type->ref;
-            ts = type_size(&s->type, a);
-
-            if (ts < 0 && s->c < 0)
-                ts = -ts;
-
-            return ts * s->c;
-        } else {
-            *a = PTR_SIZE;
-            return PTR_SIZE;
-        }
-    } else if (bt == VT_LDOUBLE) {
-        *a = LDOUBLE_ALIGN;
-        return LDOUBLE_SIZE;
-    } else if (bt == VT_DOUBLE || bt == VT_LLONG) {
-#ifdef TCC_TARGET_I386
-#ifdef TCC_TARGET_PE
-        *a = 8;
-#else
-        *a = 4;
-#endif
-#elif defined(TCC_TARGET_ARM)
-#ifdef TCC_ARM_EABI
-        *a = 8; 
-#else
-        *a = 4;
-#endif
-#else
-        *a = 8;
-#endif
-        return 8;
-    } else if (bt == VT_INT || bt == VT_ENUM || bt == VT_FLOAT) {
-        *a = 4;
-        return 4;
-    } else if (bt == VT_SHORT) {
-        *a = 2;
-        return 2;
-    } else {
-        /* char, void, function, _Bool */
-        *a = 1;
-        return 1;
-    }
 }
 
 /* return the pointed type of t */
@@ -300,260 +235,6 @@ static void mk_pointer(CType *type)
     s = sym_push(SYM_FIELD, type, 0, -1);
     type->t = VT_PTR | (type->t & ~VT_TYPE);
     type->ref = s;
-}
-
-/* compare function types. OLD functions match any new functions */
-static int is_compatible_func(CType *type1, CType *type2)
-{
-    Sym *s1, *s2;
-
-    s1 = type1->ref;
-    s2 = type2->ref;
-    if (!is_compatible_types(&s1->type, &s2->type))
-        return 0;
-    /* check func_call */
-    if (FUNC_CALL(s1->r) != FUNC_CALL(s2->r))
-        return 0;
-    /* XXX: not complete */
-    if (s1->c == FUNC_OLD || s2->c == FUNC_OLD)
-        return 1;
-    if (s1->c != s2->c)
-        return 0;
-    while (s1 != NULL) {
-        if (s2 == NULL)
-            return 0;
-        if (!is_compatible_parameter_types(&s1->type, &s2->type))
-            return 0;
-        s1 = s1->next;
-        s2 = s2->next;
-    }
-    if (s2)
-        return 0;
-    return 1;
-}
-
-/* return true if type1 and type2 are the same.  If unqualified is
-   true, qualifiers on the types are ignored.
-
-   - enums are not checked as gcc __builtin_types_compatible_p () 
- */
-static int compare_types(CType *type1, CType *type2, int unqualified)
-{
-    int bt1, t1, t2;
-
-    t1 = type1->t & VT_TYPE;
-    t2 = type2->t & VT_TYPE;
-    if (unqualified) {
-        /* strip qualifiers before comparing */
-        t1 &= ~(VT_CONSTANT | VT_VOLATILE);
-        t2 &= ~(VT_CONSTANT | VT_VOLATILE);
-    }
-    /* XXX: bitfields ? */
-    if (t1 != t2)
-        return 0;
-    /* test more complicated cases */
-    bt1 = t1 & VT_BTYPE;
-    if (bt1 == VT_PTR) {
-        type1 = pointed_type(type1);
-        type2 = pointed_type(type2);
-        return is_compatible_types(type1, type2);
-    } else if (bt1 == VT_STRUCT) {
-        return (type1->ref == type2->ref);
-    } else if (bt1 == VT_FUNC) {
-        return is_compatible_func(type1, type2);
-    } else {
-        return 1;
-    }
-}
-
-/* return true if type1 and type2 are exactly the same (including
-   qualifiers). 
-*/
-static int is_compatible_types(CType *type1, CType *type2)
-{
-    return compare_types(type1,type2,0);
-}
-
-/* return true if type1 and type2 are the same (ignoring qualifiers).
-*/
-static int is_compatible_parameter_types(CType *type1, CType *type2)
-{
-    return compare_types(type1,type2,1);
-}
-
-/* print a type. If 'varstr' is not NULL, then the variable is also
-   printed in the type */
-/* XXX: union */
-/* XXX: add array and function pointers */
-STATIC void type_to_str(char *buf, int buf_size, 
-                 CType *type, const char *varstr)
-{
-    int bt, v, t;
-    Sym *s, *sa;
-    char buf1[256];
-    const char *tstr;
-
-    t = type->t & VT_TYPE;
-    bt = t & VT_BTYPE;
-    buf[0] = '\0';
-    if (t & VT_CONSTANT)
-        pstrcat(buf, buf_size, "const ");
-    if (t & VT_VOLATILE)
-        pstrcat(buf, buf_size, "volatile ");
-    if (t & VT_UNSIGNED)
-        pstrcat(buf, buf_size, "unsigned ");
-    switch(bt) {
-    case VT_VOID:
-        tstr = "void";
-        goto add_tstr;
-    case VT_BOOL:
-        tstr = "_Bool";
-        goto add_tstr;
-    case VT_BYTE:
-        tstr = "char";
-        goto add_tstr;
-    case VT_SHORT:
-        tstr = "short";
-        goto add_tstr;
-    case VT_INT:
-        tstr = "int";
-        goto add_tstr;
-    case VT_LONG:
-        tstr = "long";
-        goto add_tstr;
-    case VT_LLONG:
-        tstr = "long long";
-        goto add_tstr;
-    case VT_FLOAT:
-        tstr = "float";
-        goto add_tstr;
-    case VT_DOUBLE:
-        tstr = "double";
-        goto add_tstr;
-    case VT_LDOUBLE:
-        tstr = "long double";
-    add_tstr:
-        pstrcat(buf, buf_size, tstr);
-        break;
-    case VT_ENUM:
-    case VT_STRUCT:
-        if (bt == VT_STRUCT)
-            tstr = "struct ";
-        else
-            tstr = "enum ";
-        pstrcat(buf, buf_size, tstr);
-        v = type->ref->v & ~SYM_STRUCT;
-        if (v >= SYM_FIRST_ANOM)
-            pstrcat(buf, buf_size, "<anonymous>");
-        else
-            pstrcat(buf, buf_size, get_tok_str(v, NULL));
-        break;
-    case VT_FUNC:
-        s = type->ref;
-        type_to_str(buf, buf_size, &s->type, varstr);
-        pstrcat(buf, buf_size, "(");
-        sa = s->next;
-        while (sa != NULL) {
-            type_to_str(buf1, sizeof(buf1), &sa->type, NULL);
-            pstrcat(buf, buf_size, buf1);
-            sa = sa->next;
-            if (sa)
-                pstrcat(buf, buf_size, ", ");
-        }
-        pstrcat(buf, buf_size, ")");
-        goto no_var;
-    case VT_PTR:
-        s = type->ref;
-        pstrcpy(buf1, sizeof(buf1), "*");
-        if (varstr)
-            pstrcat(buf1, sizeof(buf1), varstr);
-        type_to_str(buf, buf_size, &s->type, buf1);
-        goto no_var;
-    }
-    if (varstr) {
-        pstrcat(buf, buf_size, " ");
-        pstrcat(buf, buf_size, varstr);
-    }
- no_var: ;
-}
-
-/* verify type compatibility to store vtop in 'dt' type, and generate
-   casts if needed. */
-static void gen_assign_cast(CType *dt)
-{
-    CType *st, *type1, *type2, tmp_type1, tmp_type2;
-    char buf1[256], buf2[256];
-    int dbt, sbt;
-
-    st = &vtop->type; /* source type */
-    dbt = dt->t & VT_BTYPE;
-    sbt = st->t & VT_BTYPE;
-    if (dt->t & VT_CONSTANT)
-        warning("assignment of read-only location");
-    switch(dbt) {
-    case VT_PTR:
-        /* special cases for pointers */
-        /* '0' can also be a pointer */
-        if (is_null_pointer(vtop))
-            goto type_ok;
-        /* accept implicit pointer to integer cast with warning */
-        if (is_integer_btype(sbt)) {
-            warning("assignment makes pointer from integer without a cast");
-            goto type_ok;
-        }
-        type1 = pointed_type(dt);
-        /* a function is implicitely a function pointer */
-        if (sbt == VT_FUNC) {
-            if ((type1->t & VT_BTYPE) != VT_VOID &&
-                !is_compatible_types(pointed_type(dt), st))
-                goto error;
-            else
-                goto type_ok;
-        }
-        if (sbt != VT_PTR)
-            goto error;
-        type2 = pointed_type(st);
-        if ((type1->t & VT_BTYPE) == VT_VOID || 
-            (type2->t & VT_BTYPE) == VT_VOID) {
-            /* void * can match anything */
-        } else {
-            /* exact type match, except for unsigned */
-            tmp_type1 = *type1;
-            tmp_type2 = *type2;
-            tmp_type1.t &= ~(VT_UNSIGNED | VT_CONSTANT | VT_VOLATILE);
-            tmp_type2.t &= ~(VT_UNSIGNED | VT_CONSTANT | VT_VOLATILE);
-            if (!is_compatible_types(&tmp_type1, &tmp_type2))
-                warning("assignment from incompatible pointer type");
-        }
-        /* check const and volatile */
-        if ((!(type1->t & VT_CONSTANT) && (type2->t & VT_CONSTANT)) ||
-            (!(type1->t & VT_VOLATILE) && (type2->t & VT_VOLATILE)))
-            warning("assignment discards qualifiers from pointer target type");
-        break;
-    case VT_BYTE:
-    case VT_SHORT:
-    case VT_INT:
-    case VT_LLONG:
-        if (sbt == VT_PTR || sbt == VT_FUNC) {
-            warning("assignment makes integer from pointer without a cast");
-        }
-        /* XXX: more tests */
-        break;
-    case VT_STRUCT:
-        tmp_type1 = *dt;
-        tmp_type2 = *st;
-        tmp_type1.t &= ~(VT_CONSTANT | VT_VOLATILE);
-        tmp_type2.t &= ~(VT_CONSTANT | VT_VOLATILE);
-        if (!is_compatible_types(&tmp_type1, &tmp_type2)) {
-        error:
-            type_to_str(buf1, sizeof(buf1), st, NULL);
-            type_to_str(buf2, sizeof(buf2), dt, NULL);
-            error("cannot cast '%s' to '%s'", buf1, buf2);
-        }
-        break;
-    }
- type_ok:
-    gen_cast(dt);
 }
 
 /* store vtop in lvalue pushed on stack */
@@ -574,8 +255,7 @@ STATIC void vstore(void)
             warning("assignment of read-only location");
     } else {
         delayed_cast = 0;
-        if (!(ft & VT_BITFIELD))
-            gen_assign_cast(&vtop[-1].type);
+        abort();
     }
 
     if (sbt == VT_STRUCT) {
@@ -615,23 +295,6 @@ static inline void convert_parameter_type(CType *pt)
 }
 
 
-/* compute the lvalue VT_LVAL_xxx needed to match type t. */
-static int lvalue_type(int t)
-{
-    int bt, r;
-    r = VT_LVAL;
-    bt = t & VT_BTYPE;
-    if (bt == VT_BYTE || bt == VT_BOOL)
-        r |= VT_LVAL_BYTE;
-    else if (bt == VT_SHORT)
-        r |= VT_LVAL_SHORT;
-    else
-        return r;
-    if (t & VT_UNSIGNED)
-        r |= VT_LVAL_UNSIGNED;
-    return r;
-}
-
 /* indirection with full error checking and bound check */
 static void indir(void)
 {
@@ -644,7 +307,7 @@ static void indir(void)
     /* Arrays and functions are never lvalues */
     if (!(vtop->type.t & VT_ARRAY)
         && (vtop->type.t & VT_BTYPE) != VT_FUNC) {
-        vtop->r |= lvalue_type(vtop->type.t);
+        abort();
     }
 }
 
@@ -667,7 +330,7 @@ static void gfunc_param_typed(Sym *func, Sym *arg)
     } else {
         type = arg->type;
         type.t &= ~VT_CONSTANT; /* need to do that to avoid false warning */
-        gen_assign_cast(&type);
+        abort();
     }
 }
 
@@ -848,10 +511,6 @@ static void unary(void)
             vpushi(s->c);
             /* change type to field type, and set to lvalue */
             vtop->type = s->type;
-            /* an array is never an lvalue */
-            if (!(vtop->type.t & VT_ARRAY)) {
-                vtop->r |= lvalue_type(vtop->type.t);
-            }
             next();
         } else if (tok == '[') {
             next();
@@ -886,7 +545,7 @@ static void unary(void)
             {
                 ret.type = s->type; 
                 /* return in register */
-                ret.r = REG_IRET;
+                /* XXX *///ret.r = REG_IRET;
                 ret.c.i = 0;
             }
             if (tok != ')') {
@@ -1093,27 +752,6 @@ static int expr_const(void)
     return c;
 }
 
-/* return the label token if current token is a label, otherwise
-   return zero */
-static int is_label(void)
-{
-    int last_tok;
-
-    /* fast test first */
-    if (tok < TOK_UIDENT)
-        return 0;
-    /* no need to save tokc because tok is an identifier */
-    last_tok = tok;
-    next();
-    if (tok == ':') {
-        next();
-        return last_tok;
-    } else {
-        unget_tok(last_tok);
-        return 0;
-    }
-}
-
 /* t is the array or struct type. c is the array or struct
    address. cur_index/cur_field is the pointer to the current
    value. 'size_only' is true if only size info is needed (only used
@@ -1129,66 +767,6 @@ static void decl_designator(CType *type, Section *sec, unsigned long c,
     notfirst = 0;
     elem_size = 0;
     nb_elems = 1;
-    if (gnu_ext && (l = is_label()) != 0)
-        goto struct_field;
-    while (tok == '[' || tok == '.') {
-        if (tok == '[') {
-            if (!(type->t & VT_ARRAY))
-                expect("array type");
-            s = type->ref;
-            next();
-            index = expr_const();
-            if (index < 0 || (s->c >= 0 && index >= s->c))
-                expect("invalid index");
-            if (tok == TOK_DOTS && gnu_ext) {
-                next();
-                index_last = expr_const();
-                if (index_last < 0 || 
-                    (s->c >= 0 && index_last >= s->c) ||
-                    index_last < index)
-                    expect("invalid index");
-            } else {
-                index_last = index;
-            }
-            skip(']');
-            if (!notfirst)
-                *cur_index = index_last;
-            type = pointed_type(type);
-            elem_size = type_size(type, &align);
-            c += index * elem_size;
-            /* NOTE: we only support ranges for last designator */
-            nb_elems = index_last - index + 1;
-            if (nb_elems != 1) {
-                notfirst = 1;
-                break;
-            }
-        } else {
-            next();
-            l = tok;
-            next();
-        struct_field:
-            if ((type->t & VT_BTYPE) != VT_STRUCT)
-                expect("struct/union type");
-            s = type->ref;
-            l |= SYM_FIELD;
-            f = s->next;
-            while (f) {
-                if (f->v == l)
-                    break;
-                f = f->next;
-            }
-            if (!f)
-                expect("field");
-            if (!notfirst)
-                *cur_field = f;
-            /* XXX: fix this mess by using explicit storage field */
-            type1 = f->type;
-            type1.t |= (type->t & ~VT_TYPE);
-            type = &type1;
-            c += f->c;
-        }
-        notfirst = 1;
-    }
     if (notfirst) {
         if (tok == '=') {
             next();
@@ -1200,7 +778,8 @@ static void decl_designator(CType *type, Section *sec, unsigned long c,
         if (type->t & VT_ARRAY) {
             index = *cur_index;
             type = pointed_type(type);
-            c += index * type_size(type, &align);
+            abort();
+            //c += index * type_size(type, &align);
         } else {
             f = *cur_field;
             if (!f)
@@ -1272,7 +851,7 @@ static void init_putv(CType *type, Section *sec, unsigned long c,
     if (sec) {
         /* XXX: not portable */
         /* XXX: generate error if incorrect relocation */
-        gen_assign_cast(&dtype);
+        abort();
         bt = type->t & VT_BTYPE;
         /* we'll write at most 12 bytes */
         if (c + 12 > sec->data_allocated) {
@@ -1351,7 +930,8 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
         n = s->c;
         array_length = 0;
         t1 = pointed_type(type);
-        size1 = type_size(t1, &align1);
+        abort();
+        //size1 = type_size(t1, &align1);
 
         no_oblock = 1;
         if ((first && tok != TOK_LSTR && tok != TOK_STR) || 
