@@ -31,6 +31,3 @@ clean: local_clean
 local_clean:
 	rm -vf $(PROGS) *~ *.o *.a *.out
 
-distclean: clean
-	rm -vf config.h config.mak config.texi
-
