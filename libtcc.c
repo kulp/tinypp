@@ -520,6 +520,8 @@ static void add_char(CString *cstr, int c)
         cstr_ccat(cstr, '\\');
         if (c == '\n') {
             cstr_ccat(cstr, 'n');
+        } else if (c == '\r') {
+            cstr_ccat(cstr, 'r');
         } else {
             cstr_ccat(cstr, '0' + ((c >> 6) & 7));
             cstr_ccat(cstr, '0' + ((c >> 3) & 7));
