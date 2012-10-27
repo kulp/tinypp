@@ -3,3 +3,4 @@ config.mak
 *.o
 config.h
 tcc
+config.texi
