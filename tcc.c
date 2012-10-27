@@ -49,6 +49,12 @@ int main(int argc, char **argv)
 {
     TCCState *s = tcc_new();
     s->outfile = stdout;
+    if (setjmp(s->error_jmp_buf)) {
+        puts("TODO error handling");
+        return 1;
+    }
+
+    s->error_set_jmp_enabled = 1;
 
     tcc_set_output_type(s, TCC_OUTPUT_PREPROCESS);
     parse_args(s, argc - 1, argv + 1);
