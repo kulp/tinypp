@@ -721,14 +721,6 @@ extern int num_callers;
 extern const char **rt_bound_error_msg;
 #endif
 
-/* true if float/double/long double type */
-static inline int is_float(int t)
-{
-    int bt;
-    bt = t & VT_BTYPE;
-    return bt == VT_LDOUBLE || bt == VT_DOUBLE || bt == VT_FLOAT;
-}
-
 /* space exlcuding newline */
 static inline int is_space(int ch)
 {

@@ -84,7 +84,7 @@ STATIC void vpop(void)
 /* cast 'vtop' to 'type'. Casting to bitfields is forbidden. */
 static void gen_cast(CType *type)
 {
-    int sbt, dbt, sf, df, c, p;
+    int sbt, dbt, c, p;
 
     /* special delayed cast for char/short */
     /* XXX: in some cases (multiple cascaded casts), it may still
@@ -94,8 +94,6 @@ static void gen_cast(CType *type)
     sbt = vtop->type.t & (VT_BTYPE | VT_UNSIGNED);
 
     if (sbt != dbt) {
-        sf = is_float(sbt);
-        df = is_float(dbt);
         c = (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == VT_CONST;
         p = (vtop->r & (VT_VALMASK | VT_LVAL | VT_SYM)) == (VT_CONST | VT_SYM);
         if (c) {
@@ -106,31 +104,8 @@ static void gen_cast(CType *type)
             else if (sbt == VT_DOUBLE)
                 vtop->c.ld = vtop->c.d;
 
-            if (df) {
-                if ((sbt & VT_BTYPE) == VT_LLONG) {
-                    if (sbt & VT_UNSIGNED)
-                        vtop->c.ld = vtop->c.ull;
-                    else
-                        vtop->c.ld = vtop->c.ll;
-                } else if(!sf) {
-                    if (sbt & VT_UNSIGNED)
-                        vtop->c.ld = vtop->c.ui;
-                    else
-                        vtop->c.ld = vtop->c.i;
-                }
-
-                if (dbt == VT_FLOAT)
-                    vtop->c.f = (float)vtop->c.ld;
-                else if (dbt == VT_DOUBLE)
-                    vtop->c.d = (double)vtop->c.ld;
-            } else if (sf && dbt == (VT_LLONG|VT_UNSIGNED)) {
-                vtop->c.ull = (unsigned long long)vtop->c.ld;
-            } else if (sf && dbt == VT_BOOL) {
-                vtop->c.i = (vtop->c.ld != 0);
-            } else {
-                if(sf)
-                    vtop->c.ll = (long long)vtop->c.ld;
-                else if (sbt == (VT_LLONG|VT_UNSIGNED))
+            {
+                if (sbt == (VT_LLONG|VT_UNSIGNED))
                     vtop->c.ll = vtop->c.ull;
                 else if (sbt & VT_UNSIGNED)
                     vtop->c.ll = vtop->c.ui;
@@ -201,18 +176,6 @@ STATIC void vstore(void)
         vtop->r |= delayed_cast;
     }
 }
-
-/* convert a function parameter type (array to pointer and function to
-   function pointer) */
-static inline void convert_parameter_type(CType *pt)
-{
-    /* remove const and volatile qualifiers (XXX: const could be used
-       to indicate a const function parameter */
-    pt->t &= ~(VT_CONSTANT | VT_VOLATILE);
-    /* array must be transformed to pointer according to ANSI C */
-    pt->t &= ~VT_ARRAY;
-}
-
 
 static void vpush_tokc(int t)
 {
