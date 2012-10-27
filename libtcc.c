@@ -166,7 +166,7 @@ static int tcc_add_file_internal(TCCState *s, const char *filename, int flags);
 /********************************************************/
 /* global variables */
 
-#include "x86_64-gen.c"
+#include "x86_64-defs.c"
 
 #define RTLD_LAZY       0x001
 #define RTLD_NOW        0x002

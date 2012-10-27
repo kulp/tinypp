@@ -38,7 +38,8 @@ STATIC void vsetc(CType *type, int r, CValue *vc)
     if (vtop >= vstack) {
         v = vtop->r & VT_VALMASK;
         if (v == VT_CMP || (v & ~1) == VT_JMP)
-            gv(RC_INT);
+            abort();
+            //gv(RC_INT);
     }
     vtop++;
     vtop->type = *type;
@@ -166,148 +167,6 @@ STATIC void gaddrof(void)
         vtop->r = (vtop->r & ~(VT_VALMASK | VT_LVAL_TYPE)) | VT_LOCAL | VT_LVAL;
 }
 
-/* store vtop a register belonging to class 'rc'. lvalues are
-   converted to values. Cannot be used if cannot be converted to
-   register value (such as structures). */
-STATIC int gv(int rc)
-{
-    int r, rc2, bit_pos, bit_size, size, align, i;
-
-    /* NOTE: get_reg can modify vstack[] */
-    if (vtop->type.t & VT_BITFIELD) {
-        CType type;
-        int bits = 32;
-        bit_pos = (vtop->type.t >> VT_STRUCT_SHIFT) & 0x3f;
-        bit_size = (vtop->type.t >> (VT_STRUCT_SHIFT + 6)) & 0x3f;
-        /* remove bit field info to avoid loops */
-        vtop->type.t &= ~(VT_BITFIELD | (-1 << VT_STRUCT_SHIFT));
-        /* cast to int to propagate signedness in following ops */
-        if ((vtop->type.t & VT_BTYPE) == VT_LLONG) {
-            type.t = VT_LLONG;
-            bits = 64;
-        } else
-            type.t = VT_INT;
-        if((vtop->type.t & VT_UNSIGNED) ||
-           (vtop->type.t & VT_BTYPE) == VT_BOOL)
-            type.t |= VT_UNSIGNED;
-        gen_cast(&type);
-        /* generate shifts */
-        vpushi(bits - (bit_pos + bit_size));
-        gen_op(TOK_SHL);
-        vpushi(bits - bit_size);
-        /* NOTE: transformed to SHR if unsigned */
-        gen_op(TOK_SAR);
-        r = gv(rc);
-    } else {
-        if (is_float(vtop->type.t) && 
-            (vtop->r & (VT_VALMASK | VT_LVAL)) == VT_CONST) {
-            Sym *sym;
-            int *ptr;
-            unsigned long offset;
-#if defined(TCC_TARGET_ARM) && !defined(TCC_ARM_VFP)
-            CValue check;
-#endif
-            
-            /* XXX: unify with initializers handling ? */
-            /* CPUs usually cannot use float constants, so we store them
-               generically in data segment */
-            size = type_size(&vtop->type, &align);
-            offset = (data_section->data_offset + align - 1) & -align;
-            data_section->data_offset = offset;
-            /* XXX: not portable yet */
-#if defined(__i386__) || defined(__x86_64__)
-            /* Zero pad x87 tenbyte long doubles */
-            if (size == LDOUBLE_SIZE)
-                vtop->c.tab[2] &= 0xffff;
-#endif
-            ptr = section_ptr_add(data_section, size);
-            size = size >> 2;
-            for(i=0;i<size;i++)
-                ptr[i] = vtop->c.tab[i];
-            /* XXX *///sym = get_sym_ref(&vtop->type, data_section, offset, size << 2);
-            vtop->r |= VT_LVAL | VT_SYM;
-            vtop->sym = sym;
-            vtop->c.ul = 0;
-        }
-
-        r = vtop->r & VT_VALMASK;
-        rc2 = RC_INT;
-        if (rc == RC_IRET)
-            rc2 = RC_LRET;
-        /* need to reload if:
-           - constant
-           - lvalue (need to dereference pointer)
-           - already a register, but not in the right class */
-        if (r >= VT_CONST || 
-            (vtop->r & VT_LVAL) ||
-            !(reg_classes[r] & rc) ||
-            ((vtop->type.t & VT_BTYPE) == VT_LLONG && 
-             !(reg_classes[vtop->r2] & rc2))) {
-            r = get_reg(rc);
-            if ((vtop->r & VT_LVAL) && !is_float(vtop->type.t)) {
-                int t1, t;
-                /* lvalue of scalar type : need to use lvalue type
-                   because of possible cast */
-                t = vtop->type.t;
-                t1 = t;
-                /* compute memory access type */
-                if (vtop->r & VT_LVAL_BYTE)
-                    t = VT_BYTE;
-                else if (vtop->r & VT_LVAL_SHORT)
-                    t = VT_SHORT;
-                if (vtop->r & VT_LVAL_UNSIGNED)
-                    t |= VT_UNSIGNED;
-                vtop->type.t = t;
-                load(r, vtop);
-                /* restore wanted type */
-                vtop->type.t = t1;
-            } else {
-                /* one register type load */
-                load(r, vtop);
-            }
-        }
-        vtop->r = r;
-#ifdef TCC_TARGET_C67
-        /* uses register pairs for doubles */
-        if ((vtop->type.t & VT_BTYPE) == VT_DOUBLE) 
-            vtop->r2 = r+1;
-#endif
-    }
-    return r;
-}
-
-/* generate vtop[-1] and vtop[0] in resp. classes rc1 and rc2 */
-STATIC void gv2(int rc1, int rc2)
-{
-    int v;
-
-    /* generate more generic register first. But VT_JMP or VT_CMP
-       values must be generated first in all cases to avoid possible
-       reload errors */
-    v = vtop[0].r & VT_VALMASK;
-    if (v != VT_CMP && (v & ~1) != VT_JMP && rc1 <= rc2) {
-        vswap();
-        gv(rc1);
-        vswap();
-        gv(rc2);
-        /* test if reload is needed for first register */
-        if ((vtop[-1].r & VT_VALMASK) >= VT_CONST) {
-            vswap();
-            gv(rc1);
-            vswap();
-        }
-    } else {
-        gv(rc2);
-        vswap();
-        gv(rc1);
-        vswap();
-        /* test if reload is needed for first register */
-        if ((vtop[0].r & VT_VALMASK) >= VT_CONST) {
-            gv(rc2);
-        }
-    }
-}
-
 /* wrapper around RC_FRET to return a register by type */
 STATIC int rc_fret(int t)
 {
@@ -388,38 +247,11 @@ STATIC void vpop(void)
 {
     int v;
     v = vtop->r & VT_VALMASK;
-    if (v == VT_JMP || v == VT_JMPI) {
-        /* need to put correct jump if && or || without test */
-        gsym(vtop->c.ul);
-    }
     vtop--;
 }
 
 // XXX
-int get_reg(int rc){ }
-
-/* convert stack entry to register and duplicate its value in another
-   register */
-STATIC void gv_dup(void)
-{
-    int rc, t, r, r1;
-    SValue sv;
-
-    t = vtop->type.t;
-    {
-        /* duplicate value */
-        rc = RC_INT;
-        sv.type.t = VT_INT;
-        r = gv(rc);
-        r1 = get_reg(rc);
-        sv.r = r;
-        sv.c.ul = 0;
-        load(r1, &sv); /* move r to r1 */
-        vdup();
-        /* duplicates value */
-        vtop->r = r1;
-    }
-}
+STATIC int get_reg(int rc){ return 0; }
 
 /* handle integer constant optimizations and various machine
    independent opt */
@@ -851,11 +683,6 @@ static void gen_cast(CType *type)
     if (vtop->r & VT_MUSTCAST) {
         vtop->r &= ~VT_MUSTCAST;
         force_charshort_cast(vtop->type.t);
-    }
-
-    /* bitfields first get cast to ints */
-    if (vtop->type.t & VT_BITFIELD) {
-        gv(RC_INT);
     }
 
     dbt = type->t & (VT_BTYPE | VT_UNSIGNED);
@@ -1314,9 +1141,7 @@ STATIC void inc(int post, int c)
     test_lvalue();
     vdup(); /* save lvalue */
     if (post) {
-        gv_dup(); /* duplicate value */
-        vrotb(3);
-        vrotb(3);
+        abort();
     }
     /* add constant */
     vpushi(c - TOK_MID); 
@@ -2251,6 +2076,11 @@ static void init_putv(CType *type, Section *sec, unsigned long c,
         vstore();
         vpop();
     }
+}
+
+// XXX
+STATIC void gfunc_call(int nb_args)
+{
 }
 
 /* put zeros for variable based init */

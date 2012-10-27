@@ -469,12 +469,6 @@ static void gadd_sp(int val)
 static uint8_t arg_regs[6] = {
     TREG_RDI, TREG_RSI, TREG_RDX, TREG_RCX, TREG_R8, TREG_R9
 };
-/* Generate function call. The function address is pushed first, then
-   all the parameters in call order. This functions pops all the
-   parameters and the function address. */
-STATIC void gfunc_call(int nb_args)
-{
-}
 
 #ifdef TCC_TARGET_PE
 /* XXX: support PE? */
