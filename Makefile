@@ -71,13 +71,6 @@ ifeq ($(TOP),.)
 
 PROGS=tcc$(EXESUF)
 
-I386_CROSS = i386-tcc$(EXESUF)
-WIN32_CROSS = i386-win32-tcc$(EXESUF)
-X64_CROSS = x86_64-tcc$(EXESUF)
-ARM_CROSS = arm-tcc-fpa$(EXESUF) arm-tcc-fpa-ld$(EXESUF) \
-    arm-tcc-vfp$(EXESUF) arm-tcc-vfp-eabi$(EXESUF)
-C67_CROSS = c67-tcc$(EXESUF)
-
 CORE_FILES = tcc.c libtcc.c tccpp.c tccgen.c tccelf.c tccasm.c \
     tcc.h config.h libtcc.h tcctok.h
 I386_FILES = $(CORE_FILES) i386-gen.c i386-asm.c i386-asm.h
@@ -89,26 +82,18 @@ C67_FILES = $(CORE_FILES) c67-gen.c tcccoff.c
 ifdef CONFIG_WIN32
 PROGS+=tiny_impdef$(EXESUF) tiny_libmaker$(EXESUF)
 NATIVE_FILES=$(WIN32_FILES)
-PROGS_CROSS=$(I386_CROSS) $(X64_CROSS) $(ARM_CROSS) $(C67_CROSS)
 else
 ifeq ($(ARCH),i386)
 NATIVE_FILES=$(I386_FILES)
-PROGS_CROSS=$(X64_CROSS) $(WIN32_CROSS) $(ARM_CROSS) $(C67_CROSS)
 else
 ifeq ($(ARCH),x86-64)
 NATIVE_FILES=$(X86_64_FILES)
-PROGS_CROSS=$(I386_CROSS) $(WIN32_CROSS) $(ARM_CROSS) $(C67_CROSS)
 else
 ifeq ($(ARCH),arm)
 NATIVE_FILES=$(ARM_FILES)
-PROGS_CROSS=$(I386_CROSS) $(X64_CROSS) $(WIN32_CROSS) $(C67_CROSS)
 endif
 endif
 endif
-endif
-
-ifdef CONFIG_CROSS
-PROGS+=$(PROGS_CROSS)
 endif
 
 all: $(PROGS) $(LIBTCC1) $(BCHECK_O) libtcc.a tcc-doc.html tcc.1 libtcc_test$(EXESUF)
