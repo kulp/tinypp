@@ -39,15 +39,6 @@
 #include <setjmp.h>
 #include <time.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#include <sys/timeb.h>
-#include <io.h> /* open, close etc. */
-#include <direct.h> /* getcwd */
-#define inline __inline
-#define inp next_inp
-#endif
-
 #ifndef _WIN32
 #include <unistd.h>
 #include <sys/time.h>
@@ -97,10 +88,6 @@
 #if !defined(_WIN32) && !defined(TCC_UCLIBC) && !defined(TCC_TARGET_ARM) && \
     !defined(TCC_TARGET_C67) && !defined(TCC_TARGET_X86_64)
 #define CONFIG_TCC_BCHECK /* enable bound checking code */
-#endif
-
-#if defined(_WIN32) && !defined(TCC_TARGET_PE)
-#define CONFIG_TCC_STATIC
 #endif
 
 /* define it to include assembler support */
@@ -689,15 +676,7 @@ enum tcc_token {
 
 #define TOK_UIDENT TOK_DEFINE
 
-#ifdef _WIN32
-#define snprintf _snprintf
-#define vsnprintf _vsnprintf
-#ifndef __GNUC__
-  #define strtold (long double)strtod
-  #define strtof (float)strtod
-  #define strtoll (long long)strtol
-#endif
-#elif defined(TCC_UCLIBC) || defined(__FreeBSD__) || defined(__DragonFly__) \
+#if defined(TCC_UCLIBC) || defined(__FreeBSD__) || defined(__DragonFly__) \
     || defined(__OpenBSD__)
 /* currently incorrect */
 long double strtold(const char *nptr, char **endptr)
@@ -714,15 +693,9 @@ extern float strtof (const char *__nptr, char **__endptr);
 extern long double strtold (const char *__nptr, char **__endptr);
 #endif
 
-#ifdef _WIN32
-#define IS_PATHSEP(c) (c == '/' || c == '\\')
-#define IS_ABSPATH(p) (IS_PATHSEP(p[0]) || (p[0] && p[1] == ':' && IS_PATHSEP(p[2])))
-#define PATHCMP stricmp
-#else
 #define IS_PATHSEP(c) (c == '/')
 #define IS_ABSPATH(p) IS_PATHSEP(p[0])
 #define PATHCMP strcmp
-#endif
 
 void error(const char *fmt, ...);
 void error_noabort(const char *fmt, ...);
