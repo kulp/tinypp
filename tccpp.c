@@ -618,6 +618,7 @@ _default:
     file->buf_ptr = p;
 }
 
+#if 0
 /* ParseState handling */
 
 /* XXX: currently, no include file info is stored. Thus, we cannot display
@@ -641,6 +642,7 @@ STATIC void restore_parse_state(ParseState *s)
     tok = s->tok;
     tokc = s->tokc;
 }
+#endif
 
 /* return the number of additional 'ints' necessary to store the
    token */

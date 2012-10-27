@@ -66,16 +66,6 @@ STATIC void vpushll(long long v)
     vsetc(&ctype, VT_CONST, &cval);
 }
 
-/* push a reference to a section offset by adding a dummy symbol */
-static void vpush_ref(CType *type, Section *sec, unsigned long offset, unsigned long size)
-{
-    CValue cval;
-
-    cval.ul = 0;
-    vsetc(type, VT_CONST | VT_SYM, &cval);
-    /* XXX *///vtop->sym = get_sym_ref(type, sec, offset, size);
-}
-
 /* define a new external reference to a symbol 'v' of type 'u' */
 static Sym *external_global_sym(int v, CType *type, int r)
 {
@@ -87,24 +77,6 @@ static Sym *external_global_sym(int v, CType *type, int r)
         s = global_identifier_push(v, type->t | VT_EXTERN, 0);
         s->type.ref = type->ref;
         s->r = r | VT_CONST | VT_SYM;
-    }
-    return s;
-}
-
-/* define a new external reference to a symbol 'v' of type 'u' */
-static Sym *external_sym(int v, CType *type, int r)
-{
-    Sym *s;
-
-    s = sym_find(v);
-    if (!s) {
-        /* push forward reference */
-        s = sym_push(v, type, r | VT_CONST | VT_SYM, 0);
-        s->type.t |= VT_EXTERN;
-    } else {
-        if (!is_compatible_types(&s->type, type))
-            error("incompatible types for redefinition of '%s'", 
-                  get_tok_str(v, NULL));
     }
     return s;
 }
@@ -167,17 +139,6 @@ STATIC void gaddrof(void)
         vtop->r = (vtop->r & ~(VT_VALMASK | VT_LVAL_TYPE)) | VT_LOCAL | VT_LVAL;
 }
 
-/* wrapper around RC_FRET to return a register by type */
-STATIC int rc_fret(int t)
-{
-#ifdef TCC_TARGET_X86_64
-    if (t == VT_LDOUBLE) {
-        return RC_ST0;
-    }
-#endif
-    return RC_FRET;
-}
-
 /* wrapper around REG_FRET to return a register by type */
 STATIC int reg_fret(int t)
 {
@@ -187,43 +148,6 @@ STATIC int reg_fret(int t)
     }
 #endif
     return REG_FRET;
-}
-
-/* build a long long from two ints */
-STATIC void lbuild(int t)
-{
-    gv2(RC_INT, RC_INT);
-    vtop[-1].r2 = vtop[0].r;
-    vtop[-1].type.t = t;
-    vpop();
-}
-
-/* rotate n first stack elements to the bottom 
-   I1 ... In -> I2 ... In I1 [top is right]
-*/
-STATIC void vrotb(int n)
-{
-    int i;
-    SValue tmp;
-
-    tmp = vtop[-n + 1];
-    for(i=-n+1;i!=0;i++)
-        vtop[i] = vtop[i+1];
-    vtop[0] = tmp;
-}
-
-/* rotate n first stack elements to the top 
-   I1 ... In -> In I1 ... I(n-1)  [top is right]
- */
-STATIC void vrott(int n)
-{
-    int i;
-    SValue tmp;
-
-    tmp = vtop[0];
-    for(i = 0;i < n - 1; i++)
-        vtop[-i] = vtop[-i - 1];
-    vtop[-n + 1] = tmp;
 }
 
 #ifdef TCC_TARGET_ARM
@@ -249,9 +173,6 @@ STATIC void vpop(void)
     v = vtop->r & VT_VALMASK;
     vtop--;
 }
-
-// XXX
-STATIC int get_reg(int rc){ return 0; }
 
 /* handle integer constant optimizations and various machine
    independent opt */
@@ -1165,100 +1086,6 @@ static inline void convert_parameter_type(CType *pt)
     }
 }
 
-static void post_type(CType *type, AttributeDef *ad)
-{
-    int n, l, t1, arg_size, align;
-    Sym **plast, *s, *first;
-    AttributeDef ad1;
-    CType pt;
-
-    if (tok == '(') {
-        /* function declaration */
-        next();
-        l = 0;
-        first = NULL;
-        plast = &first;
-        arg_size = 0;
-        if (tok != ')') {
-            for(;;) {
-                /* read param name and compute offset */
-                if (l != FUNC_OLD) {
-                    if (!parse_btype(&pt, &ad1)) {
-                        if (l) {
-                            error("invalid type");
-                        } else {
-                            l = FUNC_OLD;
-                            goto old_proto;
-                        }
-                    }
-                    l = FUNC_NEW;
-                    if ((pt.t & VT_BTYPE) == VT_VOID && tok == ')')
-                        break;
-                    type_decl(&pt, &ad1, &n, TYPE_DIRECT | TYPE_ABSTRACT);
-                    if ((pt.t & VT_BTYPE) == VT_VOID)
-                        error("parameter declared as void");
-                    arg_size += (type_size(&pt, &align) + 3) & ~3;
-                } else {
-                old_proto:
-                    n = tok;
-                    if (n < TOK_UIDENT)
-                        expect("identifier");
-                    pt.t = VT_INT;
-                    next();
-                }
-                convert_parameter_type(&pt);
-                s = sym_push(n | SYM_FIELD, &pt, 0, 0);
-                *plast = s;
-                plast = &s->next;
-                if (tok == ')')
-                    break;
-                skip(',');
-                if (l == FUNC_NEW && tok == TOK_DOTS) {
-                    l = FUNC_ELLIPSIS;
-                    next();
-                    break;
-                }
-            }
-        }
-        /* if no parameters, then old type prototype */
-        if (l == 0)
-            l = FUNC_OLD;
-        skip(')');
-        t1 = type->t & VT_STORAGE;
-        /* NOTE: const is ignored in returned type as it has a special
-           meaning in gcc / C++ */
-        type->t &= ~(VT_STORAGE | VT_CONSTANT); 
-        post_type(type, ad);
-        /* we push a anonymous symbol which will contain the function prototype */
-        FUNC_ARGS(ad->func_attr) = arg_size;
-        s = sym_push(SYM_FIELD, type, ad->func_attr, l);
-        s->next = first;
-        type->t = t1 | VT_FUNC;
-        type->ref = s;
-    } else if (tok == '[') {
-        /* array definition */
-        next();
-        if (tok == TOK_RESTRICT1)
-            next();
-        n = -1;
-        if (tok != ']') {
-            n = expr_const();
-            if (n < 0)
-                error("invalid array size");    
-        }
-        skip(']');
-        /* parse next post type */
-        t1 = type->t & VT_STORAGE;
-        type->t &= ~VT_STORAGE;
-        post_type(type, ad);
-        
-        /* we push a anonymous symbol which will contain the array
-           element type */
-        s = sym_push(SYM_FIELD, type, 0, n);
-        type->t = t1 | VT_ARRAY | VT_PTR;
-        type->ref = s;
-    }
-}
 
 /* compute the lvalue VT_LVAL_xxx needed to match type t. */
 static int lvalue_type(int t)
@@ -1790,33 +1617,6 @@ static void gexpr(void)
     }
 }
 
-/* parse an expression and return its type without any side effect. */
-static void expr_type(CType *type)
-{
-    int saved_nocode_wanted;
-
-    saved_nocode_wanted = nocode_wanted;
-    nocode_wanted = 1;
-    gexpr();
-    *type = vtop->type;
-    vpop();
-    nocode_wanted = saved_nocode_wanted;
-}
-
-/* parse a unary expression and return its type without any side
-   effect. */
-static void unary_type(CType *type)
-{
-    int a;
-
-    a = nocode_wanted;
-    nocode_wanted = 1;
-    unary();
-    *type = vtop->type;
-    vpop();
-    nocode_wanted = a;
-}
-
 /* parse a constant expression and return value in vtop.  */
 static void expr_const1(void)
 {
@@ -2302,54 +2102,6 @@ static void decl_initializer(CType *type, Section *sec, unsigned long c,
         if (!sec)
             expr_type = EXPR_ANY;
         init_putv(type, sec, c, 0, expr_type);
-    }
-}
-
-/* parse an old style function declaration list */
-/* XXX: check multiple parameter */
-static void func_decl_list(Sym *func_sym)
-{
-    AttributeDef ad;
-    int v;
-    Sym *s;
-    CType btype, type;
-
-    /* parse each declaration */
-    while (tok != '{' && tok != ';' && tok != ',' && tok != TOK_EOF) {
-        if (!parse_btype(&btype, &ad)) 
-            expect("declaration list");
-        if (((btype.t & VT_BTYPE) == VT_ENUM ||
-             (btype.t & VT_BTYPE) == VT_STRUCT) && 
-            tok == ';') {
-            /* we accept no variable after */
-        } else {
-            for(;;) {
-                type = btype;
-                type_decl(&type, &ad, &v, TYPE_DIRECT);
-                /* find parameter in function parameter list */
-                s = func_sym->next;
-                while (s != NULL) {
-                    if ((s->v & ~SYM_FIELD) == v)
-                        goto found;
-                    s = s->next;
-                }
-                error("declaration for parameter '%s' but no such parameter",
-                      get_tok_str(v, NULL));
-            found:
-                /* check that no storage specifier except 'register' was given */
-                if (type.t & VT_STORAGE)
-                    error("storage class specified for '%s'", get_tok_str(v, NULL)); 
-                convert_parameter_type(&type);
-                /* we can add the type (NOTE: it could be local to the function) */
-                s->type = type;
-                /* accept other parameters */
-                if (tok == ',')
-                    next();
-                else
-                    break;
-            }
-        }
-        skip(';');
     }
 }
 

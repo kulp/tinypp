@@ -17,7 +17,7 @@ PROGS=tcc$(EXESUF)
 
 CORE_FILES = tcc.c libtcc.c tccpp.c tccgen.c \
     tcc.h config.h libtcc.h tcctok.h
-X86_64_FILES = $(CORE_FILES) x86_64-gen.c
+X86_64_FILES = $(CORE_FILES) x86_64-defs.c
 
 NATIVE_FILES=$(X86_64_FILES)
 

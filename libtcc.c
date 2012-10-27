@@ -52,27 +52,18 @@ static int parse_flags;
 #define PARSE_FLAG_ASM_COMMENTS 0x0008 /* '#' can be used for line comment */
 #define PARSE_FLAG_SPACES     0x0010 /* next() returns space tokens (for -E) */
  
-static Section *data_section; /* predefined sections */
-static Section *cur_text_section; /* current section where function code is
-                              generated */
 #ifdef CONFIG_TCC_ASM
 static Section *last_text_section; /* to handle .previous asm directive */
 #endif
 
 /* loc : local variable index
-   ind : output code index
    rsym: return symbol
-   anon_sym: anonymous symbol index
 */
-static int anon_sym, ind, loc;
+static int loc;
 /* expression generation modifiers */
 static int const_wanted; /* true if constant wanted */
-static int nocode_wanted; /* true if no code generation wanted for an expression */
 static int global_expr;  /* true if compound literals must be allocated
                             globally (used during initializers parsing */
-static CType func_vt; /* current function return type (used by return
-                         instruction) */
-static int func_vc;
 static int tok_ident;
 static TokenSym **table_ident;
 static TokenSym *hash_ident[TOK_HASH_SIZE];
@@ -139,8 +130,6 @@ static int type_size(CType *type, int *a);
 static inline CType *pointed_type(CType *type);
 static int pointed_size(CType *type);
 static int lvalue_type(int t);
-static int parse_btype(CType *type, AttributeDef *ad);
-static void type_decl(CType *type, AttributeDef *ad, int *v, int td);
 static int compare_types(CType *type1, CType *type2, int unqualified);
 static int is_compatible_types(CType *type1, CType *type2);
 static int is_compatible_parameter_types(CType *type1, CType *type2);
@@ -422,35 +411,6 @@ static void section_realloc(Section *sec, unsigned long new_size)
     memset(data + sec->data_allocated, 0, size - sec->data_allocated);
     sec->data = data;
     sec->data_allocated = size;
-}
-
-/* reserve at least 'size' bytes in section 'sec' from
-   sec->data_offset. */
-static void *section_ptr_add(Section *sec, unsigned long size)
-{
-    unsigned long offset, offset1;
-
-    offset = sec->data_offset;
-    offset1 = offset + size;
-    if (offset1 > sec->data_allocated)
-        section_realloc(sec, offset1);
-    sec->data_offset = offset1;
-    return sec->data + offset;
-}
-
-/* return a reference to a section, and create it if it does not
-   exists */
-Section *find_section(TCCState *s1, const char *name)
-{
-    Section *sec;
-    int i;
-    for(i = 1; i < s1->nb_sections; i++) {
-        sec = s1->sections[i];
-        if (!strcmp(name, sec->name)) 
-            return sec;
-    }
-    /* sections are created as PROGBITS */
-    return new_section(s1, name, SHT_PROGBITS, SHF_ALLOC);
 }
 
 static inline int isid(int c)
