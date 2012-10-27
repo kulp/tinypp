@@ -4,30 +4,19 @@
 
 CFLAGS += -g -Wall
 CFLAGS += -Wno-pointer-sign -Wno-sign-compare -fno-strict-aliasing
-OPTLEVEL = -O0
+# clang doesn't know we are using old-style variable-sized structs
+CFLAGS += -Wno-array-bounds
+CFLAGS += -O2
 
-PROGS=tcc$(EXESUF)
+PROGS = tcc$(EXESUF)
 
-CORE_FILES = tcc.c libtcc.c tccpp.c tccgen.c \
-    tcc.h libtcc.h tcctok.h
-
-all: $(PROGS) $(LIBTCC1) $(BCHECK_O)
+all: $(PROGS)
 
 # Host Tiny C Compiler
-tcc$(EXESUF): $(CORE_FILES)
+tcc$(EXESUF):  tcc.c libtcc.c tccpp.c tccgen.c tcc.h libtcc.h tcctok.h
 	$(CC) -o $@ $< $(CFLAGS) $(LIBS)
 
-%.o: %.c
-	$(LIBTCC1_CC) -o $@ -c $< $(OPTLEVEL) -Wall
-
-%.o: %.S
-	$(LIBTCC1_CC) -o $@ -c $<
-
-libtcc1.a: $(LIBTCC1_OBJS)
-	$(AR) rcs $@ $^
-
 # clean
-clean: local_clean
-local_clean:
-	rm -vf $(PROGS) *~ *.o *.a *.out
+clean:
+	rm -f $(PROGS) *.o
 
