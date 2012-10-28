@@ -56,7 +56,6 @@ int main(int argc, char **argv)
 
     s->error_set_jmp_enabled = 1;
 
-    tcc_set_output_type(s, TCC_OUTPUT_PREPROCESS);
     parse_args(s, argc - 1, argv + 1);
 
     return tcc_add_file(s, "-");

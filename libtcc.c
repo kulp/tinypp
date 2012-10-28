@@ -732,40 +732,6 @@ static int tcc_add_file_internal(TCCState *s1, const char *filename, int flags)
 
 static int tcc_add_file(TCCState *s, const char *filename)
 {
-    if (s->output_type == TCC_OUTPUT_PREPROCESS)
-        return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR | AFF_PREPROCESS);
-    else
-        return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR);
+    return tcc_add_file_internal(s, filename, AFF_PRINT_ERROR | AFF_PREPROCESS);
 }
-
-static int tcc_set_output_type(TCCState *s, int output_type)
-{
-    s->output_type = output_type;
-
-    return 0;
-}
-
-#define WD_ALL    0x0001 /* warning is activated when using -Wall */
-#define FD_INVERT 0x0002 /* invert value before storing */
-
-typedef struct FlagDef {
-    uint16_t offset;
-    uint16_t flags;
-    const char *name;
-} FlagDef;
-
-static const FlagDef warning_defs[] = {
-    { offsetof(TCCState, warn_unsupported), 0, "unsupported" },
-    { offsetof(TCCState, warn_write_strings), 0, "write-strings" },
-    { offsetof(TCCState, warn_error), 0, "error" },
-    { offsetof(TCCState, warn_implicit_function_declaration), WD_ALL,
-      "implicit-function-declaration" },
-};
-
-static const FlagDef flag_defs[] = {
-    { offsetof(TCCState, char_is_unsigned), 0, "unsigned-char" },
-    { offsetof(TCCState, char_is_unsigned), FD_INVERT, "signed-char" },
-    { offsetof(TCCState, nocommon), FD_INVERT, "common" },
-    { offsetof(TCCState, leading_underscore), 0, "leading-underscore" },
-};
 
