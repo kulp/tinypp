@@ -1036,53 +1036,6 @@ static inline void add_cached_include(TCCState *s1, int type,
     s1->cached_includes_hash[h] = s1->nb_cached_includes;
 }
 
-static void pragma_parse(TCCState *s1)
-{
-    int val;
-
-    next();
-    if (tok == TOK_pack) {
-        /*
-          This may be:
-          #pragma pack(1) // set
-          #pragma pack() // reset to default
-          #pragma pack(push,1) // push & set
-          #pragma pack(pop) // restore previous
-        */
-        next();
-        skip('(');
-        if (tok == TOK_ASM_pop) {
-            next();
-            if (s1->pack_stack_ptr <= s1->pack_stack) {
-            stk_error:
-                error("out of pack stack");
-            }
-            s1->pack_stack_ptr--;
-        } else {
-            val = 0;
-            if (tok != ')') {
-                if (tok == TOK_ASM_push) {
-                    next();
-                    if (s1->pack_stack_ptr >= s1->pack_stack + PACK_STACK_SIZE - 1)
-                        goto stk_error;
-                    s1->pack_stack_ptr++;
-                    skip(',');
-                }
-                if (tok != TOK_CINT) {
-                pack_error:
-                    error("invalid pack pragma");
-                }
-                val = tokc.i;
-                if (val < 1 || val > 16 || (val & (val - 1)) != 0)
-                    goto pack_error;
-                next();
-            }
-            *s1->pack_stack_ptr = val;
-            skip(')');
-        }
-    }
-}
-
 /* is_bof is true if first non space token at beginning of file */
 static void preprocess(int is_bof)
 {
@@ -1341,9 +1294,6 @@ include_done:
             error("#error %s", buf);
         else
             warning("#warning %s", buf);
-        break;
-    case TOK_PRAGMA:
-        pragma_parse(s1);
         break;
     default:
         if (tok == TOK_LINEFEED || tok == '!' || tok == TOK_CINT) {
