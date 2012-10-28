@@ -556,7 +556,7 @@ static BufferedFile *tcc_open(TCCState *s1, const char *filename)
     BufferedFile *bf;
 
     if (strcmp(filename, "-") == 0)
-        fd = 0, filename = "stdin";
+        fd = STDIN_FILENO, filename = "stdin";
     else
         fd = open(filename, O_RDONLY | O_BINARY);
     if (fd < 0)
