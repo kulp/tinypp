@@ -665,8 +665,6 @@ static inline int tok_ext_size(int t)
     case TOK_CLLONG:
     case TOK_CULLONG:
         return 2;
-    case TOK_CLDOUBLE:
-        return LDOUBLE_SIZE / 4;
     default:
         return 0;
     }
@@ -759,26 +757,6 @@ static void tok_str_add2(TokenString *s, int t, CValue *cv)
     case TOK_CDOUBLE:
     case TOK_CLLONG:
     case TOK_CULLONG:
-#if LDOUBLE_SIZE == 8
-    case TOK_CLDOUBLE:
-#endif
-        str[len++] = cv->tab[0];
-        str[len++] = cv->tab[1];
-        break;
-#if LDOUBLE_SIZE == 12
-    case TOK_CLDOUBLE:
-        str[len++] = cv->tab[0];
-        str[len++] = cv->tab[1];
-        str[len++] = cv->tab[2];
-#elif LDOUBLE_SIZE == 16
-    case TOK_CLDOUBLE:
-        str[len++] = cv->tab[0];
-        str[len++] = cv->tab[1];
-        str[len++] = cv->tab[2];
-        str[len++] = cv->tab[3];
-#elif LDOUBLE_SIZE != 8
-#error add long double size support
-#endif
         break;
     default:
         break;
@@ -799,26 +777,6 @@ static void tok_str_add_tok(TokenString *s)
     }
     tok_str_add2(s, tok, &tokc);
 }
-
-#if LDOUBLE_SIZE == 16
-#define LDOUBLE_GET(p, cv)                      \
-        cv.tab[0] = p[0];                       \
-        cv.tab[1] = p[1];                       \
-        cv.tab[2] = p[2];                       \
-        cv.tab[3] = p[3];
-#elif LDOUBLE_SIZE == 12
-#define LDOUBLE_GET(p, cv)                      \
-        cv.tab[0] = p[0];                       \
-        cv.tab[1] = p[1];                       \
-        cv.tab[2] = p[2];
-#elif LDOUBLE_SIZE == 8
-#define LDOUBLE_GET(p, cv)                      \
-        cv.tab[0] = p[0];                       \
-        cv.tab[1] = p[1];
-#else
-#error add long double size support
-#endif
-
 
 /* get a token from an integer array and increment pointer
    accordingly. we code it as a macro to avoid pointer aliasing. */
@@ -847,10 +805,6 @@ static void tok_str_add_tok(TokenString *s)
         cv.tab[0] = p[0];                       \
         cv.tab[1] = p[1];                       \
         p += 2;                                 \
-        break;                                  \
-    case TOK_CLDOUBLE:                          \
-        LDOUBLE_GET(p, cv);                     \
-        p += LDOUBLE_SIZE / 4;                  \
         break;                                  \
     default:                                    \
         break;                                  \
@@ -1666,11 +1620,6 @@ static void parse_number(const char *p)
                 tok = TOK_CFLOAT;
                 /* float : should handle overflow */
                 tokc.f = (float)d;
-            } else if (t == 'L') {
-                ch = *p++;
-                tok = TOK_CLDOUBLE;
-                /* XXX: not large enough */
-                tokc.ld = (long double)d;
             } else {
                 tok = TOK_CDOUBLE;
                 tokc.d = d;
@@ -1717,10 +1666,6 @@ static void parse_number(const char *p)
                 ch = *p++;
                 tok = TOK_CFLOAT;
                 tokc.f = strtof(token_buf, NULL);
-            } else if (t == 'L') {
-                ch = *p++;
-                tok = TOK_CLDOUBLE;
-                tokc.ld = strtold(token_buf, NULL);
             } else {
                 tok = TOK_CDOUBLE;
                 tokc.d = strtod(token_buf, NULL);

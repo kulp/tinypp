@@ -107,9 +107,6 @@ static int tcc_add_file_internal(TCCState *s, const char *filename, int flags);
 /********************************************************/
 /* global variables */
 
-// XXX
-#define LDOUBLE_SIZE  16
-
 #define RTLD_LAZY       0x001
 #define RTLD_NOW        0x002
 #define RTLD_GLOBAL     0x100
