@@ -2734,10 +2734,10 @@ static int tcc_preprocess(TCCState *s1)
             token_seen = 0;
         } else if (!token_seen) {
             int d = file->line_num - line_ref;
-            if (file != file_ref || d < 0 || d >= 8)
+            if (s1->emit_linerefs && (file != file_ref || d < 0 || d >= 8))
                 fprintf(s1->outfile, "# %d \"%s\"\n", file->line_num, file->filename);
             else
-                while (d)
+                while (s1->emit_linerefs && d)
                     fputs("\n", s1->outfile), --d;
             line_ref = (file_ref = file)->line_num;
             token_seen = 1;

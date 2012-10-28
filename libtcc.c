@@ -577,7 +577,9 @@ static BufferedFile *tcc_open(TCCState *s1, const char *filename)
 static void tcc_close(BufferedFile *bf)
 {
     total_lines += bf->line_num;
-    close(bf->fd);
+    // don't close stdin so we can reuse it
+    if (bf->fd != STDIN_FILENO)
+        close(bf->fd);
     tcc_free(bf);
 }
 
@@ -667,7 +669,7 @@ static TCCState *tcc_new(void)
         return NULL;
     tcc_state = s;
     s->output_type = TCC_OUTPUT_PREPROCESS;
-    //s->tcc_lib_path = CONFIG_TCCDIR;
+    s->emit_linerefs = true;
 
     preprocess_new();
 
@@ -687,7 +689,7 @@ static TCCState *tcc_new(void)
 static int tcc_add_include_path(TCCState *s1, const char *pathname)
 {
     char *pathname1;
-    
+
     pathname1 = tcc_strdup(pathname);
     dynarray_add((void ***)&s1->include_paths, &s1->nb_include_paths, pathname1);
     return 0;

@@ -54,7 +54,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    s->error_set_jmp_enabled = 1;
+    s->error_set_jmp_enabled = true;
+    s->emit_linerefs = false;
 
     parse_args(s, argc - 1, argv + 1);
 

@@ -4,11 +4,15 @@ CFLAGS += -Wno-pointer-sign -Wno-sign-compare -fno-strict-aliasing
 CFLAGS += -Wno-array-bounds
 CFLAGS += -O2
 
-all: tcc
+TARGETS ?= tcc
 
-tcc: tcc.c libtcc.c tccpp.c tccgen.c tcc.h libtcc.h tcctok.h
-	$(CC) -o $@ $< $(CFLAGS) $(LIBS)
+all: $(TARGETS)
 
+tcc.o: libtcc.c tccpp.c tccgen.c tcc.h libtcc.h tcctok.h
+tcc$(EXE_SUFFIX): tcc.o
+	$(LINK.c) -o $@ $< $(LDLIBS)
+
+CLEANFILES += tcc *.o *.dSYM
 clean:
-	rm -rf tcc *.o *.dSYM
+	rm -rf $(CLEANFILES)
 

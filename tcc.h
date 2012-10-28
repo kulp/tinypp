@@ -381,6 +381,8 @@ struct TCCState {
     /* write PLT and GOT here */
     char *runtime_plt_and_got;
     unsigned int runtime_plt_and_got_offset;
+
+    int emit_linerefs;
 };
 
 /* The current value can be: */
