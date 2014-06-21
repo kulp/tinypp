@@ -13,6 +13,6 @@ tcc$(EXE_SUFFIX): tcc.o
 	$(LINK.c) -o $@ $< $(LDLIBS)
 
 CLEANFILES += tcc *.o *.dSYM
-clean:
+clean::
 	rm -rf $(CLEANFILES)
 
