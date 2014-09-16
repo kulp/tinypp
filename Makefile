@@ -1,4 +1,4 @@
-TARGETS ?= tcc
+TARGETS ?= tcc$(EXE_SUFFIX)
 
 all: $(TARGETS)
 
@@ -12,7 +12,7 @@ tcc.o: libtcc.c tccpp.c tccgen.c tcc.h libtcc.h tcctok.h
 tcc$(EXE_SUFFIX): tcc.o
 	$(LINK.c) -o $@ $< $(LDLIBS)
 
-CLEANFILES += tcc *.o *.dSYM
+CLEANFILES += $(TARGETS) *.o *.dSYM
 clean::
 	rm -rf $(CLEANFILES)
 
