@@ -129,7 +129,7 @@ static char *get_tok_str(int v, CValue *cv)
     case TOK_CLLONG:
     case TOK_CULLONG:
         /* XXX: not quite exact, but only useful for testing  */
-        sprintf(p, "%Lu", cv->ull);
+        sprintf(p, "%llu", cv->ull);
         break;
     case TOK_LCHAR:
         cstr_ccat(&cstr_buf, 'L');
