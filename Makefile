@@ -1,11 +1,13 @@
 TARGETS ?= tcc$(EXE_SUFFIX)
+CC_OPT = -O2
+# add -g to CC_DEBUG on command-line
+CC_DEBUG =
 
 all: $(TARGETS)
 
-$(TARGETS): CFLAGS += -g -Wall
+$(TARGETS): CFLAGS += $(CC_DEBUG) -Wall
 $(TARGETS): CFLAGS += -Wno-pointer-sign -Wno-sign-compare -fno-strict-aliasing
-# clang doesn't know we are using old-style variable-sized structs
-$(TARGETS): CFLAGS += -O2
+$(TARGETS): CFLAGS += $(CC_OPT)
 
 tcc.o: libtcc.c tccpp.c tccgen.c tcc.h libtcc.h tcctok.h
 tcc$(EXE_SUFFIX): tcc.o
