@@ -102,7 +102,7 @@ typedef union CValue {
     unsigned long long ull;
     struct CString *cstr;
     void *ptr;
-    int tab[1];
+    int tab[2];
 } CValue;
 
 /* value on stack */

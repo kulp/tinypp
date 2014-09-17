@@ -2643,25 +2643,6 @@ static void next(void)
     }
 }
 
-/* push back current token and set current token to 'last_tok'. Only
-   identifier case handled for labels. */
-static inline void unget_tok(int last_tok)
-{
-    int i, n;
-    int *q;
-    unget_saved_macro_ptr = macro_ptr;
-    unget_buffer_enabled = 1;
-    q = unget_saved_buffer;
-    macro_ptr = q;
-    *q++ = tok;
-    n = tok_ext_size(tok) - 1;
-    for(i=0;i<n;i++)
-        *q++ = tokc.tab[i];
-    *q = 0; /* end of token string */
-    tok = last_tok;
-}
-
-
 /* better than nothing, but needs extension to handle '-E' option
    correctly too */
 static void preprocess_init(TCCState *s1)
