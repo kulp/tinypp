@@ -59,6 +59,8 @@ int main(int argc, char **argv)
 
     parse_args(s, argc - 1, argv + 1);
 
-    return tcc_add_file(s, "-");
+    int rc = tcc_add_file(s, "-");
+    fflush(s->outfile);
+    return rc;
 }
 
